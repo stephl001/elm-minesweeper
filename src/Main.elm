@@ -1,8 +1,9 @@
 module Main exposing (Model, Msg(..), init, main, update, view)
 
+import Array
 import Array2D exposing (..)
 import Browser
-import Html exposing (Html, button, div, h1, img, text)
+import Html exposing (Html, button, div, h1, img, table, td, text, tr)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
 import List.Extra exposing (cartesianProduct, groupsOf)
@@ -151,6 +152,11 @@ gameBoardFromList width =
     boardFromList width >> boardToGameBoard
 
 
+unmaskedBoardFromList : Width -> List PreGenerationBoardCell -> UnmaskedBoard
+unmaskedBoardFromList width =
+    boardFromList width >> initializeBoard
+
+
 type alias Row =
     Int
 
@@ -203,43 +209,40 @@ generateBoardList h w bombs =
     List.repeat bombs FutureBomb ++ List.repeat (h * w - bombs) Uninitialized
 
 
-
-{-
-      gameBoardFromShuffledList : Width -> List PreGenerationBoardCell -> Random.Generator PreGenerationBoard
-      gameBoardFromShuffledList w =
-          shuffle >> Random.map (gameBoardFromList w)
+unmaskedBoardFromShuffledList : Width -> List PreGenerationBoardCell -> Random.Generator UnmaskedBoard
+unmaskedBoardFromShuffledList w =
+    shuffle >> Random.map (unmaskedBoardFromList w)
 
 
-      generateRandomBoard : Height -> Width -> Int -> Random.Generator GameBoard
-      generateRandomBoard h w bombs =
-          generateBoardList h w bombs
-              |> gameBoardFromShuffledList w
+generateRandomBoard : Height -> Width -> Int -> Random.Generator GameBoard
+generateRandomBoard h w bombs =
+    generateBoardList h w bombs
+        |> unmaskedBoardFromShuffledList w
+        |> Random.map boardToGameBoard
 
 
-
-   generateEasyRandomBoard : Random.Generator GameBoard
-   generateEasyRandomBoard =
-       generateRandomBoard 9 9 10
-
-
-   generateMediumRandomBoard : Random.Generator GameBoard
-   generateMediumRandomBoard =
-       generateRandomBoard 16 16 40
+generateEasyRandomBoard : Random.Generator GameBoard
+generateEasyRandomBoard =
+    generateRandomBoard 9 9 10
 
 
-   generateHardRandomBoard : Random.Generator GameBoard
-   generateHardRandomBoard =
-       generateRandomBoard 16 30 99
--}
+generateMediumRandomBoard : Random.Generator GameBoard
+generateMediumRandomBoard =
+    generateRandomBoard 16 16 40
+
+
+generateHardRandomBoard : Random.Generator GameBoard
+generateHardRandomBoard =
+    generateRandomBoard 16 30 99
 
 
 type alias Model =
-    Maybe Int
+    Maybe GameBoard
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( Nothing, Cmd.none )
+    ( Nothing, Random.generate GeneratedBoard generateEasyRandomBoard )
 
 
 
@@ -247,63 +250,87 @@ init =
 
 
 type Msg
-    = PickRandom_0_100
-    | PickRandom_1000_2000
-    | PickRandom_10000_100000
-    | GeneratedInt Int
+    = GenerateEasy
+    | GenerateMedium
+    | GenerateHard
+    | GeneratedBoard GameBoard
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update msg _ =
     case msg of
-        PickRandom_0_100 ->
-            ( model, random_0_100 |> Random.generate GeneratedInt )
+        GenerateEasy ->
+            ( Nothing, Random.generate GeneratedBoard generateEasyRandomBoard )
 
-        PickRandom_1000_2000 ->
-            ( model, random_1000_2000 |> Random.generate GeneratedInt )
+        GenerateMedium ->
+            ( Nothing, Random.generate GeneratedBoard generateMediumRandomBoard )
 
-        PickRandom_10000_100000 ->
-            ( model, random_10000_100000 |> Random.generate GeneratedInt )
+        GenerateHard ->
+            ( Nothing, Random.generate GeneratedBoard generateHardRandomBoard )
 
-        GeneratedInt i ->
-            ( Just i, Cmd.none )
+        GeneratedBoard board ->
+            ( Just board, Cmd.none )
 
 
 
 ---- VIEW ----
 
 
-random_0_100 : Random.Generator Int
-random_0_100 =
-    Random.int 0 100
-
-
-random_1000_2000 =
-    Random.int 1000 2000
-
-
-random_10000_100000 =
-    Random.int 10000 100000
-
-
 view : Model -> Html Msg
-view model =
+view board =
     div []
-        [ button [ onClick PickRandom_0_100 ] [ text "Random 0-100" ]
-        , button [ onClick PickRandom_1000_2000 ] [ text "Random 1000-2000" ]
-        , button [ onClick PickRandom_10000_100000 ] [ text "Random 10000-100000" ]
-        , h1 [] [ textFromModel model |> text ]
+        [ button [ onClick GenerateEasy ] [ text "Generate easy board" ]
+        , button [ onClick GenerateMedium ] [ text "Generate medium board" ]
+        , button [ onClick GenerateHard ] [ text "Generate hard board" ]
+        , textFromBoard board
         ]
 
 
-textFromModel : Model -> String
-textFromModel model =
-    case model of
+textFromBoard : Maybe GameBoard -> Html Msg
+textFromBoard board =
+    case board of
         Nothing ->
-            ""
+            text ""
 
-        Just i ->
-            String.fromInt i
+        Just b ->
+            table [] <|
+                (List.range
+                    0
+                    (Array2D.rows b - 1)
+                    |> List.map (flip Array2D.getRow b)
+                    |> List.map
+                        (\row ->
+                            case row of
+                                Nothing ->
+                                    tr [] []
+
+                                Just r ->
+                                    tr [] (r |> Array.map (\c -> td [] [ textFromGameCell c ]) |> Array.toList)
+                        )
+                )
+
+
+textFromGameCell : GameCell -> Html Msg
+textFromGameCell gcell =
+    case gcell of
+        Unrevealed c ->
+            text ("U-" ++ stringFromCell c)
+
+        Revealed c ->
+            text ("R-" ++ stringFromCell c)
+
+
+stringFromCell : Cell -> String
+stringFromCell c =
+    case c of
+        Empty ->
+            "E"
+
+        Bomb ->
+            "B"
+
+        BombNeighbor i ->
+            "N" ++ String.fromInt i
 
 
 
