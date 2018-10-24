@@ -5,32 +5,45 @@ import Browser
 import Html exposing (Html, button, div, h1, img, text)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
-import List.Extra exposing (groupsOf)
+import List.Extra exposing (cartesianProduct, groupsOf)
 import Random
+import Random.List exposing (shuffle)
 
 
 
 ---- MODEL ----
 
 
-type BoardCell
+type PreGenerationBoardCell
     = Uninitialized
-    | Bomb
+    | FutureBomb
+
+
+type Cell
+    = Bomb
     | BombNeighbor Int
     | Empty
 
 
-type alias Board =
-    Array2D BoardCell
+type GameCell
+    = Unrevealed Cell
+    | Revealed Cell
 
 
-type GameBoardCell
-    = Unrevealed BoardCell
-    | Revealed BoardCell
+type alias Board boardCell =
+    Array2D boardCell
+
+
+type alias PreGenerationBoard =
+    Board PreGenerationBoardCell
+
+
+type alias UnmaskedBoard =
+    Board Cell
 
 
 type alias GameBoard =
-    Array2D GameBoardCell
+    Board GameCell
 
 
 type alias Height =
@@ -48,17 +61,92 @@ type GameState
     | Completed GameBoard
 
 
-boardToGameBoard : Board -> GameBoard
+
+--- Initialize the board here
+
+
+cellNeighborsDeltas : List ( Row, Column )
+cellNeighborsDeltas =
+    [ ( 1, -1 ), ( 1, 0 ), ( 1, 1 ), ( 0, -1 ), ( 0, 1 ), ( -1, -1 ), ( -1, 0 ), ( -1, 1 ) ]
+
+
+possibleNeighbors : ( Row, Column ) -> List ( Row, Column )
+possibleNeighbors pos =
+    let
+        addTuples ( a, b ) ( c, d ) =
+            ( a + c, b + d )
+    in
+    cellNeighborsDeltas |> List.map (addTuples pos)
+
+
+getCellOrDefault : a -> ( Row, Column ) -> Board a -> a
+getCellOrDefault defVal ( row, col ) =
+    Array2D.get row col >> Maybe.withDefault defVal
+
+
+getFromPregenerationBoard : ( Row, Column ) -> PreGenerationBoard -> PreGenerationBoardCell
+getFromPregenerationBoard =
+    getCellOrDefault Uninitialized
+
+
+flip : (a -> b -> c) -> b -> a -> c
+flip f y x =
+    f x y
+
+
+countPreGenerationNeighborCells : PreGenerationBoardCell -> ( Row, Column ) -> PreGenerationBoard -> Int
+countPreGenerationNeighborCells cellType pos board =
+    possibleNeighbors pos
+        |> List.map (flip getFromPregenerationBoard <| board)
+        |> List.filter ((==) FutureBomb)
+        |> List.length
+
+
+countPreGenerationNeighborBombs : ( Row, Column ) -> PreGenerationBoard -> Int
+countPreGenerationNeighborBombs =
+    countPreGenerationNeighborCells FutureBomb
+
+
+mapBoard : (( Row, Column ) -> a -> b) -> Board a -> Board b
+mapBoard f =
+    Array2D.indexedMap (\row col -> f ( row, col ))
+
+
+toCell : PreGenerationBoard -> ( Row, Column ) -> PreGenerationBoardCell -> Cell
+toCell board pos cell =
+    case cell of
+        FutureBomb ->
+            Bomb
+
+        Uninitialized ->
+            let
+                neighborBombs =
+                    countPreGenerationNeighborBombs pos board
+            in
+            if neighborBombs == 0 then
+                Empty
+
+            else
+                BombNeighbor neighborBombs
+
+
+initializeBoard : PreGenerationBoard -> UnmaskedBoard
+initializeBoard board =
+    board
+        |> Array2D.indexedMap (\row col -> toCell board ( row, col ))
+
+
+boardToGameBoard : UnmaskedBoard -> GameBoard
 boardToGameBoard =
     Array2D.map Unrevealed
 
 
-boardFromList : Width -> List BoardCell -> Board
+boardFromList : Width -> List boardCell -> Board boardCell
 boardFromList width =
     List.Extra.groupsOf width >> Array2D.fromList
 
 
-gameBoardFromList : Width -> List BoardCell -> GameBoard
+gameBoardFromList : Width -> List Cell -> GameBoard
 gameBoardFromList width =
     boardFromList width >> boardToGameBoard
 
@@ -71,7 +159,7 @@ type alias Column =
     Int
 
 
-boardCellFromGameBoardCell : GameBoardCell -> BoardCell
+boardCellFromGameBoardCell : GameCell -> Cell
 boardCellFromGameBoardCell cell =
     case cell of
         Unrevealed bc ->
@@ -81,7 +169,7 @@ boardCellFromGameBoardCell cell =
             bc
 
 
-reveal : Row -> Column -> GameBoard -> ( Maybe BoardCell, GameBoard )
+reveal : Row -> Column -> GameBoard -> ( Maybe Cell, GameBoard )
 reveal row col board =
     let
         boardCell =
@@ -96,7 +184,7 @@ reveal row col board =
             ( boardCell, board |> Array2D.set row col (Revealed c) )
 
 
-peek : Row -> Column -> GameBoard -> Maybe BoardCell
+peek : Row -> Column -> GameBoard -> Maybe Cell
 peek row col =
     reveal row col >> Tuple.first
 
@@ -105,9 +193,44 @@ isEmptyCell : Row -> Column -> GameBoard -> Bool
 isEmptyCell row col board =
     let
         cell =
-            peek row col board |> Maybe.withDefault Uninitialized
+            peek row col board |> Maybe.withDefault Empty
     in
     cell == Empty
+
+
+generateBoardList : Height -> Width -> Int -> List PreGenerationBoardCell
+generateBoardList h w bombs =
+    List.repeat bombs FutureBomb ++ List.repeat (h * w - bombs) Uninitialized
+
+
+
+{-
+      gameBoardFromShuffledList : Width -> List PreGenerationBoardCell -> Random.Generator PreGenerationBoard
+      gameBoardFromShuffledList w =
+          shuffle >> Random.map (gameBoardFromList w)
+
+
+      generateRandomBoard : Height -> Width -> Int -> Random.Generator GameBoard
+      generateRandomBoard h w bombs =
+          generateBoardList h w bombs
+              |> gameBoardFromShuffledList w
+
+
+
+   generateEasyRandomBoard : Random.Generator GameBoard
+   generateEasyRandomBoard =
+       generateRandomBoard 9 9 10
+
+
+   generateMediumRandomBoard : Random.Generator GameBoard
+   generateMediumRandomBoard =
+       generateRandomBoard 16 16 40
+
+
+   generateHardRandomBoard : Random.Generator GameBoard
+   generateHardRandomBoard =
+       generateRandomBoard 16 30 99
+-}
 
 
 type alias Model =
