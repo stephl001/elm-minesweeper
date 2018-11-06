@@ -1,11 +1,13 @@
-module Main exposing (Model, Msg(..), init, main, update, view)
+module Main exposing (GameState, Msg(..), init, main, update, view)
 
 import Array
 import Array2D exposing (..)
 import Browser
-import Html exposing (Html, button, div, h1, img, table, td, text, tr)
-import Html.Attributes exposing (src)
-import Html.Events exposing (onClick)
+import Css exposing (..)
+import Html
+import Html.Styled exposing (..)
+import Html.Styled.Attributes exposing (css, disabled, href, src)
+import Html.Styled.Events exposing (onClick)
 import List.Extra exposing (cartesianProduct, groupsOf)
 import Random
 import Random.List exposing (shuffle)
@@ -204,6 +206,40 @@ isEmptyCell row col board =
     cell == Empty
 
 
+mapRows : (Row -> a) -> GameBoard -> List a
+mapRows f board =
+    let
+        maxIndexRow =
+            Array2D.rows board - 1
+    in
+    List.range 0 maxIndexRow
+        |> List.map f
+
+
+mapRowCells : Row -> (Column -> GameCell -> a) -> GameBoard -> List a
+mapRowCells row f =
+    Array2D.getRow row
+        >> Maybe.withDefault Array.empty
+        >> Array.indexedMap f
+        >> Array.toList
+
+
+getBoardWidth : Board a -> Int
+getBoardWidth =
+    Array2D.columns
+
+
+
+--- Board Generation Section
+
+
+generateUninitializedBoard : Height -> Width -> GameBoard
+generateUninitializedBoard height width =
+    List.repeat (width * height) Uninitialized
+        |> unmaskedBoardFromList width
+        |> boardToGameBoard
+
+
 generateBoardList : Height -> Width -> Int -> List PreGenerationBoardCell
 generateBoardList h w bombs =
     List.repeat bombs FutureBomb ++ List.repeat (h * w - bombs) Uninitialized
@@ -236,13 +272,9 @@ generateHardRandomBoard =
     generateRandomBoard 16 30 99
 
 
-type alias Model =
-    Maybe GameBoard
-
-
-init : ( Model, Cmd Msg )
-init =
-    ( Nothing, Random.generate GeneratedBoard generateEasyRandomBoard )
+init : flags -> ( GameState, Cmd Msg )
+init _ =
+    ( NotStarted 9 9, Cmd.none )
 
 
 
@@ -250,64 +282,102 @@ init =
 
 
 type Msg
-    = GenerateEasy
+    = Restart
+    | GenerateEasy Row Column
     | GenerateMedium
     | GenerateHard
-    | GeneratedBoard GameBoard
+    | GeneratedBoard Row Column GameBoard
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg _ =
+update : Msg -> GameState -> ( GameState, Cmd Msg )
+update msg gameState =
     case msg of
-        GenerateEasy ->
-            ( Nothing, Random.generate GeneratedBoard generateEasyRandomBoard )
+        GenerateEasy row col ->
+            ( gameState, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
 
-        GenerateMedium ->
-            ( Nothing, Random.generate GeneratedBoard generateMediumRandomBoard )
+        GeneratedBoard row col board ->
+            let
+                targetCell =
+                    peek row col board |> Maybe.withDefault Bomb
+            in
+            if targetCell == Empty then
+                ( Playing board, Cmd.none )
 
-        GenerateHard ->
-            ( Nothing, Random.generate GeneratedBoard generateHardRandomBoard )
+            else
+                ( gameState, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
 
-        GeneratedBoard board ->
-            ( Just board, Cmd.none )
+        Restart ->
+            ( NotStarted 9 9, Cmd.none )
+
+        _ ->
+            ( NotStarted 9 9, Cmd.none )
 
 
 
 ---- VIEW ----
 
 
-view : Model -> Html Msg
-view board =
+view : GameState -> Html Msg
+view gameState =
     div []
-        [ button [ onClick GenerateEasy ] [ text "Generate easy board" ]
-        , button [ onClick GenerateMedium ] [ text "Generate medium board" ]
-        , button [ onClick GenerateHard ] [ text "Generate hard board" ]
-        , textFromBoard board
+        [ button [ onClick Restart ] [ text "New Game" ]
+        , gameState |> boardFromState |> textFromBoard
         ]
 
 
-textFromBoard : Maybe GameBoard -> Html Msg
+boardFromState : GameState -> GameBoard
+boardFromState state =
+    case state of
+        NotStarted height width ->
+            generateUninitializedBoard height width
+
+        Playing board ->
+            board
+
+        _ ->
+            generateUninitializedBoard 0 0
+
+
+textFromBoard : GameBoard -> Html Msg
 textFromBoard board =
-    case board of
-        Nothing ->
-            text ""
+    Html.Styled.table
+        [ css
+            [ width (pct 80)
+            , margin auto
+            ]
+        ]
+        (toTableRows board)
 
-        Just b ->
-            table [] <|
-                (List.range
-                    0
-                    (Array2D.rows b - 1)
-                    |> List.map (flip Array2D.getRow b)
-                    |> List.map
-                        (\row ->
-                            case row of
-                                Nothing ->
-                                    tr [] []
 
-                                Just r ->
-                                    tr [] (r |> Array.map (\c -> td [] [ textFromGameCell c ]) |> Array.toList)
-                        )
-                )
+toTableRows : GameBoard -> List (Html Msg)
+toTableRows board =
+    board |> mapRows (toTableRow board)
+
+
+toTableRow : GameBoard -> Row -> Html Msg
+toTableRow board row =
+    tr [] <| mapRowCells row (toTableCell board row) board
+
+
+toTableCell : GameBoard -> Row -> Column -> GameCell -> Html Msg
+toTableCell board row col gcell =
+    let
+        bWidth =
+            getBoardWidth board
+
+        widthRatio =
+            pct (100.0 / toFloat bWidth)
+    in
+    td
+        [ css
+            [ width widthRatio
+            , position relative
+            , border3 (px 1) solid (rgb 100 50 100)
+            , textAlign center
+            ]
+        , onClick (GenerateEasy row col)
+        ]
+        [ textFromGameCell gcell ]
 
 
 textFromGameCell : GameCell -> Html Msg
@@ -337,11 +407,11 @@ stringFromCell c =
 ---- PROGRAM ----
 
 
-main : Program () Model Msg
+main : Program () GameState Msg
 main =
     Browser.element
-        { view = view
-        , init = \_ -> init
+        { view = view >> toUnstyled
+        , init = init
         , update = update
         , subscriptions = always Sub.none
         }
