@@ -2,12 +2,14 @@ module Main exposing (GameState, Msg(..), init, main, update, view)
 
 import Array
 import Array2D exposing (..)
+import Bootstrap.Button as Button
+import Bootstrap.CDN as CDN
+import Bootstrap.Grid as Grid
+import Bootstrap.Navbar as Navbar
 import Browser
-import Css exposing (..)
-import Html
-import Html.Styled exposing (..)
-import Html.Styled.Attributes exposing (css, disabled, href, src)
-import Html.Styled.Events exposing (onClick)
+import Html exposing (..)
+import Html.Attributes exposing (class, href, src, style)
+import Html.Events exposing (onClick)
 import List.Extra exposing (cartesianProduct, groupsOf)
 import Random
 import Random.List exposing (shuffle)
@@ -62,6 +64,12 @@ type GameState
     | Playing GameBoard
     | GameOver GameBoard
     | Completed GameBoard
+
+
+type alias Model =
+    { gameState : GameState
+    , navbarState : Navbar.State
+    }
 
 
 
@@ -142,6 +150,21 @@ initializeBoard board =
 boardToGameBoard : UnmaskedBoard -> GameBoard
 boardToGameBoard =
     Array2D.map Unrevealed
+
+
+toRevealedCell : GameCell -> GameCell
+toRevealedCell cell =
+    case cell of
+        Unrevealed c ->
+            Revealed c
+
+        Revealed _ ->
+            cell
+
+
+revealBoard : GameBoard -> GameBoard
+revealBoard =
+    mapBoard (\_ -> toRevealedCell)
 
 
 boardFromList : Width -> List boardCell -> Board boardCell
@@ -272,28 +295,67 @@ generateHardRandomBoard =
     generateRandomBoard 16 30 99
 
 
-init : flags -> ( GameState, Cmd Msg )
+
+---- INIT ----
+
+
+notStartedEasy : GameState
+notStartedEasy =
+    NotStarted 9 9
+
+
+notStartedMedium : GameState
+notStartedMedium =
+    NotStarted 16 16
+
+
+notStartedHard : GameState
+notStartedHard =
+    NotStarted 16 30
+
+
+init : flags -> ( Model, Cmd Msg )
 init _ =
-    ( NotStarted 9 9, Cmd.none )
+    let
+        ( navbarState, navbarCmd ) =
+            Navbar.initialState NavbarMsg
+    in
+    ( { gameState = notStartedEasy, navbarState = navbarState }, navbarCmd )
+
+
+
+---- SUBSCRIPTIONS ----
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Navbar.subscriptions model.navbarState NavbarMsg
 
 
 
 ---- UPDATE ----
 
 
+type GameMode
+    = Easy
+    | Medium
+    | Hard
+
+
 type Msg
-    = Restart
+    = NewGame GameMode
     | GenerateEasy Row Column
     | GenerateMedium
     | GenerateHard
     | GeneratedBoard Row Column GameBoard
+    | NavbarMsg Navbar.State
 
 
-update : Msg -> GameState -> ( GameState, Cmd Msg )
-update msg gameState =
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
     case msg of
         GenerateEasy row col ->
-            ( gameState, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
+            ( model, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
 
         GeneratedBoard row col board ->
             let
@@ -301,27 +363,80 @@ update msg gameState =
                     peek row col board |> Maybe.withDefault Bomb
             in
             if targetCell == Empty then
-                ( Playing board, Cmd.none )
+                ( { model | gameState = Playing board }, Cmd.none )
 
             else
-                ( gameState, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
+                ( model, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
 
-        Restart ->
-            ( NotStarted 9 9, Cmd.none )
+        NewGame mode ->
+            case mode of
+                Easy ->
+                    ( { model | gameState = notStartedEasy }, Cmd.none )
+
+                Medium ->
+                    ( { model | gameState = notStartedMedium }, Cmd.none )
+
+                Hard ->
+                    ( { model | gameState = notStartedHard }, Cmd.none )
+
+        NavbarMsg state ->
+            ( { model | navbarState = state }, Cmd.none )
 
         _ ->
-            ( NotStarted 9 9, Cmd.none )
+            ( { model | gameState = notStartedEasy }, Cmd.none )
 
 
 
 ---- VIEW ----
 
 
-view : GameState -> Html Msg
-view gameState =
-    div []
-        [ button [ onClick Restart ] [ text "New Game" ]
-        , gameState |> boardFromState |> textFromBoard
+view : Model -> Html Msg
+view model =
+    Grid.container []
+        -- Wrap in a container to center the navbar
+        [ CDN.stylesheet
+        , Navbar.config NavbarMsg
+            |> Navbar.withAnimation
+            |> Navbar.collapseMedium
+            -- Collapse menu at the medium breakpoint
+            |> Navbar.info
+            -- Customize coloring
+            |> Navbar.brand
+                -- Add logo to your brand with a little styling to align nicely
+                [ href "#" ]
+                [ img
+                    [ src "assets/images/elm-bootstrap.svg"
+                    , class "d-inline-block align-top"
+                    , style "width" "30px"
+                    ]
+                    []
+                , text " Minesweeper"
+                ]
+            |> Navbar.items
+                [ Navbar.dropdown
+                    -- Adding dropdowns is pretty simple
+                    { id = "mydropdown"
+                    , toggle = Navbar.dropdownToggle [] [ text "Nouvelle Partie" ]
+                    , items =
+                        [ Navbar.dropdownHeader [ text "Heading" ]
+                        , Navbar.dropdownItem
+                            [ href "#", onClick (NewGame Easy) ]
+                            [ text "Facile (9x9)" ]
+                        , Navbar.dropdownItem
+                            [ href "#", onClick (NewGame Medium) ]
+                            [ text "Moyen (16x16)" ]
+                        , Navbar.dropdownItem
+                            [ href "#", onClick (NewGame Hard) ]
+                            [ text "Difficile (16x30)" ]
+                        , Navbar.dropdownDivider
+                        , Navbar.dropdownItem
+                            [ href "#" ]
+                            [ text "Options..." ]
+                        ]
+                    }
+                ]
+            |> Navbar.view model.navbarState
+        , model.gameState |> boardFromState |> textFromBoard
         ]
 
 
@@ -334,19 +449,16 @@ boardFromState state =
         Playing board ->
             board
 
+        GameOver board ->
+            revealBoard board
+
         _ ->
             generateUninitializedBoard 0 0
 
 
 textFromBoard : GameBoard -> Html Msg
 textFromBoard board =
-    Html.Styled.table
-        [ css
-            [ width (pct 80)
-            , margin auto
-            ]
-        ]
-        (toTableRows board)
+    Grid.container [] <| toTableRows board
 
 
 toTableRows : GameBoard -> List (Html Msg)
@@ -356,28 +468,17 @@ toTableRows board =
 
 toTableRow : GameBoard -> Row -> Html Msg
 toTableRow board row =
-    tr [] <| mapRowCells row (toTableCell board row) board
+    Grid.row [] <| mapRowCells row (toTableCell board row) board
 
 
-toTableCell : GameBoard -> Row -> Column -> GameCell -> Html Msg
+toTableCell : GameBoard -> Row -> Column -> GameCell -> Grid.Column Msg
 toTableCell board row col gcell =
-    let
-        bWidth =
-            getBoardWidth board
-
-        widthRatio =
-            pct (100.0 / toFloat bWidth)
-    in
-    td
-        [ css
-            [ width widthRatio
-            , position relative
-            , border3 (px 1) solid (rgb 100 50 100)
-            , textAlign center
-            ]
-        , onClick (GenerateEasy row col)
+    Grid.col
+        []
+        [ Button.button
+            [ Button.attrs [ onClick (GenerateEasy row col) ] ]
+            [ textFromGameCell gcell ]
         ]
-        [ textFromGameCell gcell ]
 
 
 textFromGameCell : GameCell -> Html Msg
@@ -407,11 +508,11 @@ stringFromCell c =
 ---- PROGRAM ----
 
 
-main : Program () GameState Msg
+main : Program () Model Msg
 main =
     Browser.element
-        { view = view >> toUnstyled
+        { view = view
         , init = init
         , update = update
-        , subscriptions = always Sub.none
+        , subscriptions = subscriptions
         }
