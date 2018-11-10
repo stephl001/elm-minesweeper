@@ -345,8 +345,8 @@ type GameMode
 type Msg
     = NewGame GameMode
     | GenerateEasy Row Column
-    | GenerateMedium
-    | GenerateHard
+    | GenerateMedium Row Column
+    | GenerateHard Row Column
     | GeneratedBoard Row Column GameBoard
     | NavbarMsg Navbar.State
 
@@ -357,6 +357,12 @@ update msg model =
         GenerateEasy row col ->
             ( model, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
 
+        GenerateMedium row col ->
+            ( model, Random.generate (GeneratedBoard row col) generateMediumRandomBoard )
+
+        GenerateHard row col ->
+            ( model, Random.generate (GeneratedBoard row col) generateHardRandomBoard )
+
         GeneratedBoard row col board ->
             let
                 targetCell =
@@ -366,7 +372,7 @@ update msg model =
                 ( { model | gameState = Playing board }, Cmd.none )
 
             else
-                ( model, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
+                ( model, board |> randomGeneratorFromBoard |> Random.generate (GeneratedBoard row col) )
 
         NewGame mode ->
             case mode of
@@ -381,9 +387,6 @@ update msg model =
 
         NavbarMsg state ->
             ( { model | navbarState = state }, Cmd.none )
-
-        _ ->
-            ( { model | gameState = notStartedEasy }, Cmd.none )
 
 
 
@@ -473,12 +476,52 @@ toTableRow board row =
 
 toTableCell : GameBoard -> Row -> Column -> GameCell -> Grid.Column Msg
 toTableCell board row col gcell =
+    let
+        generationHandler =
+            generatorFromBoard board
+    in
     Grid.col
         []
         [ Button.button
-            [ Button.attrs [ onClick (GenerateEasy row col) ] ]
+            [ Button.attrs [ onClick (generationHandler row col) ] ]
             [ textFromGameCell gcell ]
         ]
+
+
+generatorFromBoard : GameBoard -> (Row -> Column -> Msg)
+generatorFromBoard =
+    getBoardWidth >> generatorFromBoardWidth
+
+
+generatorFromBoardWidth : Int -> (Row -> Column -> Msg)
+generatorFromBoardWidth width =
+    case width of
+        16 ->
+            GenerateMedium
+
+        30 ->
+            GenerateHard
+
+        _ ->
+            GenerateEasy
+
+
+randomGeneratorFromBoard : GameBoard -> Random.Generator GameBoard
+randomGeneratorFromBoard =
+    getBoardWidth >> randomGeneratorFromBoardWidth
+
+
+randomGeneratorFromBoardWidth : Int -> Random.Generator GameBoard
+randomGeneratorFromBoardWidth width =
+    case width of
+        16 ->
+            generateMediumRandomBoard
+
+        30 ->
+            generateHardRandomBoard
+
+        _ ->
+            generateEasyRandomBoard
 
 
 textFromGameCell : GameCell -> Html Msg

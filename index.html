@@ -6881,6 +6881,8 @@ var author$project$Main$generateRandomBoard = F3(
 				A3(author$project$Main$generateBoardList, h, w, bombs)));
 	});
 var author$project$Main$generateEasyRandomBoard = A3(author$project$Main$generateRandomBoard, 9, 9, 10);
+var author$project$Main$generateHardRandomBoard = A3(author$project$Main$generateRandomBoard, 16, 30, 99);
+var author$project$Main$generateMediumRandomBoard = A3(author$project$Main$generateRandomBoard, 16, 16, 40);
 var author$project$Main$notStartedHard = A2(author$project$Main$NotStarted, 16, 30);
 var author$project$Main$notStartedMedium = A2(author$project$Main$NotStarted, 16, 16);
 var author$project$Main$Revealed = function (a) {
@@ -6994,6 +6996,21 @@ var author$project$Main$peek = F2(
 			A2(author$project$Main$reveal, row, col),
 			elm$core$Tuple$first);
 	});
+var tortus$elm_array_2d$Array2D$columns = function (array2d) {
+	return array2d.columns;
+};
+var author$project$Main$getBoardWidth = tortus$elm_array_2d$Array2D$columns;
+var author$project$Main$randomGeneratorFromBoardWidth = function (width) {
+	switch (width) {
+		case 16:
+			return author$project$Main$generateMediumRandomBoard;
+		case 30:
+			return author$project$Main$generateHardRandomBoard;
+		default:
+			return author$project$Main$generateEasyRandomBoard;
+	}
+};
+var author$project$Main$randomGeneratorFromBoard = A2(elm$core$Basics$composeR, author$project$Main$getBoardWidth, author$project$Main$randomGeneratorFromBoardWidth);
 var elm$core$Platform$Cmd$batch = _Platform_batch;
 var elm$core$Platform$Cmd$none = elm$core$Platform$Cmd$batch(_List_Nil);
 var elm$random$Random$Generate = function (a) {
@@ -7085,6 +7102,24 @@ var author$project$Main$update = F2(
 						elm$random$Random$generate,
 						A2(author$project$Main$GeneratedBoard, row, col),
 						author$project$Main$generateEasyRandomBoard));
+			case 'GenerateMedium':
+				var row = msg.a;
+				var col = msg.b;
+				return _Utils_Tuple2(
+					model,
+					A2(
+						elm$random$Random$generate,
+						A2(author$project$Main$GeneratedBoard, row, col),
+						author$project$Main$generateMediumRandomBoard));
+			case 'GenerateHard':
+				var row = msg.a;
+				var col = msg.b;
+				return _Utils_Tuple2(
+					model,
+					A2(
+						elm$random$Random$generate,
+						A2(author$project$Main$GeneratedBoard, row, col),
+						author$project$Main$generateHardRandomBoard));
 			case 'GeneratedBoard':
 				var row = msg.a;
 				var col = msg.b;
@@ -7104,7 +7139,7 @@ var author$project$Main$update = F2(
 					A2(
 						elm$random$Random$generate,
 						A2(author$project$Main$GeneratedBoard, row, col),
-						author$project$Main$generateEasyRandomBoard));
+						author$project$Main$randomGeneratorFromBoard(board)));
 			case 'NewGame':
 				var mode = msg.a;
 				switch (mode.$) {
@@ -7127,18 +7162,12 @@ var author$project$Main$update = F2(
 								{gameState: author$project$Main$notStartedHard}),
 							elm$core$Platform$Cmd$none);
 				}
-			case 'NavbarMsg':
+			default:
 				var state = msg.a;
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{navbarState: state}),
-					elm$core$Platform$Cmd$none);
-			default:
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{gameState: author$project$Main$notStartedEasy}),
 					elm$core$Platform$Cmd$none);
 		}
 	});
@@ -7220,6 +7249,25 @@ var author$project$Main$GenerateEasy = F2(
 	function (a, b) {
 		return {$: 'GenerateEasy', a: a, b: b};
 	});
+var author$project$Main$GenerateHard = F2(
+	function (a, b) {
+		return {$: 'GenerateHard', a: a, b: b};
+	});
+var author$project$Main$GenerateMedium = F2(
+	function (a, b) {
+		return {$: 'GenerateMedium', a: a, b: b};
+	});
+var author$project$Main$generatorFromBoardWidth = function (width) {
+	switch (width) {
+		case 16:
+			return author$project$Main$GenerateMedium;
+		case 30:
+			return author$project$Main$GenerateHard;
+		default:
+			return author$project$Main$GenerateEasy;
+	}
+};
+var author$project$Main$generatorFromBoard = A2(elm$core$Basics$composeR, author$project$Main$getBoardWidth, author$project$Main$generatorFromBoardWidth);
 var author$project$Main$stringFromCell = function (c) {
 	switch (c.$) {
 		case 'Empty':
@@ -7441,6 +7489,7 @@ var rundis$elm_bootstrap$Bootstrap$Grid$col = F2(
 	});
 var author$project$Main$toTableCell = F4(
 	function (board, row, col, gcell) {
+		var generationHandler = author$project$Main$generatorFromBoard(board);
 		return A2(
 			rundis$elm_bootstrap$Bootstrap$Grid$col,
 			_List_Nil,
@@ -7454,7 +7503,7 @@ var author$project$Main$toTableCell = F4(
 							_List_fromArray(
 								[
 									elm$html$Html$Events$onClick(
-									A2(author$project$Main$GenerateEasy, row, col))
+									A2(generationHandler, row, col))
 								]))
 						]),
 					_List_fromArray(
