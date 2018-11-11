@@ -5926,6 +5926,10 @@ var author$project$Main$GeneratedBoard = F3(
 var author$project$Main$Playing = function (a) {
 	return {$: 'Playing', a: a};
 };
+var author$project$Main$RevealCell = F2(
+	function (a, b) {
+		return {$: 'RevealCell', a: a, b: b};
+	});
 var author$project$Main$Unrevealed = function (a) {
 	return {$: 'Unrevealed', a: a};
 };
@@ -7011,8 +7015,94 @@ var author$project$Main$randomGeneratorFromBoardWidth = function (width) {
 	}
 };
 var author$project$Main$randomGeneratorFromBoard = A2(elm$core$Basics$composeR, author$project$Main$getBoardWidth, author$project$Main$randomGeneratorFromBoardWidth);
+var author$project$Main$GameOver = function (a) {
+	return {$: 'GameOver', a: a};
+};
+var author$project$Main$generateUninitializedBoard = F2(
+	function (height, width) {
+		return author$project$Main$boardToGameBoard(
+			A2(
+				author$project$Main$unmaskedBoardFromList,
+				width,
+				A2(elm$core$List$repeat, width * height, author$project$Main$Uninitialized)));
+	});
+var author$project$Main$mapBoard = function (f) {
+	return tortus$elm_array_2d$Array2D$indexedMap(
+		F2(
+			function (row, col) {
+				return f(
+					_Utils_Tuple2(row, col));
+			}));
+};
+var author$project$Main$toRevealedCell = function (cell) {
+	if (cell.$ === 'Unrevealed') {
+		var c = cell.a;
+		return author$project$Main$Revealed(c);
+	} else {
+		return cell;
+	}
+};
+var author$project$Main$revealBoard = author$project$Main$mapBoard(
+	function (_n0) {
+		return author$project$Main$toRevealedCell;
+	});
+var author$project$Main$boardFromState = function (state) {
+	switch (state.$) {
+		case 'NotStarted':
+			var height = state.a;
+			var width = state.b;
+			return A2(author$project$Main$generateUninitializedBoard, height, width);
+		case 'Playing':
+			var board = state.a;
+			return board;
+		case 'GameOver':
+			var board = state.a;
+			return author$project$Main$revealBoard(board);
+		default:
+			return A2(author$project$Main$generateUninitializedBoard, 0, 0);
+	}
+};
 var elm$core$Platform$Cmd$batch = _Platform_batch;
 var elm$core$Platform$Cmd$none = elm$core$Platform$Cmd$batch(_List_Nil);
+var author$project$Main$revealGameCell = F3(
+	function (row, col, model) {
+		var board = author$project$Main$boardFromState(model.gameState);
+		var _n0 = A3(author$project$Main$reveal, row, col, board);
+		var cell = _n0.a;
+		var newBoard = _n0.b;
+		if (cell.$ === 'Nothing') {
+			return _Utils_Tuple2(model, elm$core$Platform$Cmd$none);
+		} else {
+			var c = cell.a;
+			switch (c.$) {
+				case 'Bomb':
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{
+								gameState: author$project$Main$GameOver(
+									author$project$Main$revealBoard(board))
+							}),
+						elm$core$Platform$Cmd$none);
+				case 'Empty':
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{
+								gameState: author$project$Main$Playing(newBoard)
+							}),
+						elm$core$Platform$Cmd$none);
+				default:
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{
+								gameState: author$project$Main$Playing(newBoard)
+							}),
+						elm$core$Platform$Cmd$none);
+			}
+		}
+	});
 var elm$random$Random$Generate = function (a) {
 	return {$: 'Generate', a: a};
 };
@@ -7128,13 +7218,14 @@ var author$project$Main$update = F2(
 					elm$core$Maybe$withDefault,
 					author$project$Main$Bomb,
 					A3(author$project$Main$peek, row, col, board));
-				return _Utils_eq(targetCell, author$project$Main$Empty) ? _Utils_Tuple2(
+				return _Utils_eq(targetCell, author$project$Main$Empty) ? A2(
+					author$project$Main$update,
+					A2(author$project$Main$RevealCell, row, col),
 					_Utils_update(
 						model,
 						{
 							gameState: author$project$Main$Playing(board)
-						}),
-					elm$core$Platform$Cmd$none) : _Utils_Tuple2(
+						})) : _Utils_Tuple2(
 					model,
 					A2(
 						elm$random$Random$generate,
@@ -7162,6 +7253,10 @@ var author$project$Main$update = F2(
 								{gameState: author$project$Main$notStartedHard}),
 							elm$core$Platform$Cmd$none);
 				}
+			case 'RevealCell':
+				var row = msg.a;
+				var col = msg.b;
+				return A3(author$project$Main$revealGameCell, row, col, model);
 			default:
 				var state = msg.a;
 				return _Utils_Tuple2(
@@ -7176,50 +7271,6 @@ var author$project$Main$Hard = {$: 'Hard'};
 var author$project$Main$Medium = {$: 'Medium'};
 var author$project$Main$NewGame = function (a) {
 	return {$: 'NewGame', a: a};
-};
-var author$project$Main$generateUninitializedBoard = F2(
-	function (height, width) {
-		return author$project$Main$boardToGameBoard(
-			A2(
-				author$project$Main$unmaskedBoardFromList,
-				width,
-				A2(elm$core$List$repeat, width * height, author$project$Main$Uninitialized)));
-	});
-var author$project$Main$mapBoard = function (f) {
-	return tortus$elm_array_2d$Array2D$indexedMap(
-		F2(
-			function (row, col) {
-				return f(
-					_Utils_Tuple2(row, col));
-			}));
-};
-var author$project$Main$toRevealedCell = function (cell) {
-	if (cell.$ === 'Unrevealed') {
-		var c = cell.a;
-		return author$project$Main$Revealed(c);
-	} else {
-		return cell;
-	}
-};
-var author$project$Main$revealBoard = author$project$Main$mapBoard(
-	function (_n0) {
-		return author$project$Main$toRevealedCell;
-	});
-var author$project$Main$boardFromState = function (state) {
-	switch (state.$) {
-		case 'NotStarted':
-			var height = state.a;
-			var width = state.b;
-			return A2(author$project$Main$generateUninitializedBoard, height, width);
-		case 'Playing':
-			var board = state.a;
-			return board;
-		case 'GameOver':
-			var board = state.a;
-			return author$project$Main$revealBoard(board);
-		default:
-			return A2(author$project$Main$generateUninitializedBoard, 0, 0);
-	}
 };
 var tortus$elm_array_2d$Array2D$rows = function (array2d) {
 	return elm$core$Array$length(array2d.data);
@@ -7268,6 +7319,60 @@ var author$project$Main$generatorFromBoardWidth = function (width) {
 	}
 };
 var author$project$Main$generatorFromBoard = A2(elm$core$Basics$composeR, author$project$Main$getBoardWidth, author$project$Main$generatorFromBoardWidth);
+var author$project$Main$generatorFromGameState = A2(elm$core$Basics$composeR, author$project$Main$boardFromState, author$project$Main$generatorFromBoard);
+var author$project$Main$isRevealedCell = F3(
+	function (row, col, board) {
+		var cell = A3(
+			author$project$Main$getCellOrDefault,
+			author$project$Main$Unrevealed(author$project$Main$Empty),
+			_Utils_Tuple2(row, col),
+			board);
+		if (cell.$ === 'Unrevealed') {
+			return false;
+		} else {
+			return true;
+		}
+	});
+var elm$virtual_dom$VirtualDom$Normal = function (a) {
+	return {$: 'Normal', a: a};
+};
+var elm$virtual_dom$VirtualDom$on = _VirtualDom_on;
+var elm$html$Html$Events$on = F2(
+	function (event, decoder) {
+		return A2(
+			elm$virtual_dom$VirtualDom$on,
+			event,
+			elm$virtual_dom$VirtualDom$Normal(decoder));
+	});
+var elm$html$Html$Events$onClick = function (msg) {
+	return A2(
+		elm$html$Html$Events$on,
+		'click',
+		elm$json$Json$Decode$succeed(msg));
+};
+var author$project$Main$getButtonAttributes = F3(
+	function (state, row, col) {
+		var generationHandler = author$project$Main$generatorFromGameState(state);
+		switch (state.$) {
+			case 'NotStarted':
+				return _List_fromArray(
+					[
+						elm$html$Html$Events$onClick(
+						A2(generationHandler, row, col))
+					]);
+			case 'Playing':
+				var board = state.a;
+				return A3(author$project$Main$isRevealedCell, row, col, board) ? _List_Nil : _List_fromArray(
+					[
+						elm$html$Html$Events$onClick(
+						A2(author$project$Main$RevealCell, row, col))
+					]);
+			case 'GameOver':
+				return _List_Nil;
+			default:
+				return _List_Nil;
+		}
+	});
 var author$project$Main$stringFromCell = function (c) {
 	switch (c.$) {
 		case 'Empty':
@@ -7291,23 +7396,6 @@ var author$project$Main$textFromGameCell = function (gcell) {
 		return elm$html$Html$text(
 			'R-' + author$project$Main$stringFromCell(c));
 	}
-};
-var elm$virtual_dom$VirtualDom$Normal = function (a) {
-	return {$: 'Normal', a: a};
-};
-var elm$virtual_dom$VirtualDom$on = _VirtualDom_on;
-var elm$html$Html$Events$on = F2(
-	function (event, decoder) {
-		return A2(
-			elm$virtual_dom$VirtualDom$on,
-			event,
-			elm$virtual_dom$VirtualDom$Normal(decoder));
-	});
-var elm$html$Html$Events$onClick = function (msg) {
-	return A2(
-		elm$html$Html$Events$on,
-		'click',
-		elm$json$Json$Decode$succeed(msg));
 };
 var rundis$elm_bootstrap$Bootstrap$Internal$Button$Attrs = function (a) {
 	return {$: 'Attrs', a: a};
@@ -7488,7 +7576,8 @@ var rundis$elm_bootstrap$Bootstrap$Grid$col = F2(
 			{children: children, options: options});
 	});
 var author$project$Main$toTableCell = F4(
-	function (board, row, col, gcell) {
+	function (state, row, col, gcell) {
+		var board = author$project$Main$boardFromState(state);
 		var generationHandler = author$project$Main$generatorFromBoard(board);
 		return A2(
 			rundis$elm_bootstrap$Bootstrap$Grid$col,
@@ -7500,11 +7589,7 @@ var author$project$Main$toTableCell = F4(
 					_List_fromArray(
 						[
 							rundis$elm_bootstrap$Bootstrap$Button$attrs(
-							_List_fromArray(
-								[
-									elm$html$Html$Events$onClick(
-									A2(generationHandler, row, col))
-								]))
+							A3(author$project$Main$getButtonAttributes, state, row, col))
 						]),
 					_List_fromArray(
 						[
@@ -8305,21 +8390,22 @@ var rundis$elm_bootstrap$Bootstrap$Grid$row = F2(
 			A2(elm$core$List$map, rundis$elm_bootstrap$Bootstrap$Grid$renderCol, cols));
 	});
 var author$project$Main$toTableRow = F2(
-	function (board, row) {
+	function (state, row) {
+		var board = author$project$Main$boardFromState(state);
 		return A2(
 			rundis$elm_bootstrap$Bootstrap$Grid$row,
 			_List_Nil,
 			A3(
 				author$project$Main$mapRowCells,
 				row,
-				A2(author$project$Main$toTableCell, board, row),
+				A2(author$project$Main$toTableCell, state, row),
 				board));
 	});
-var author$project$Main$toTableRows = function (board) {
+var author$project$Main$toTableRows = function (state) {
 	return A2(
 		author$project$Main$mapRows,
-		author$project$Main$toTableRow(board),
-		board);
+		author$project$Main$toTableRow(state),
+		author$project$Main$boardFromState(state));
 };
 var rundis$elm_bootstrap$Bootstrap$Grid$container = F2(
 	function (attributes, children) {
@@ -8333,12 +8419,10 @@ var rundis$elm_bootstrap$Bootstrap$Grid$container = F2(
 				attributes),
 			children);
 	});
-var author$project$Main$textFromBoard = function (board) {
-	return A2(
-		rundis$elm_bootstrap$Bootstrap$Grid$container,
-		_List_Nil,
-		author$project$Main$toTableRows(board));
-};
+var author$project$Main$textFromGameState = A2(
+	elm$core$Basics$composeR,
+	author$project$Main$toTableRows,
+	rundis$elm_bootstrap$Bootstrap$Grid$container(_List_Nil));
 var elm$html$Html$img = _VirtualDom_node('img');
 var elm$html$Html$Attributes$href = function (url) {
 	return A2(
@@ -9421,8 +9505,7 @@ var author$project$Main$view = function (model) {
 							rundis$elm_bootstrap$Bootstrap$Navbar$collapseMedium(
 								rundis$elm_bootstrap$Bootstrap$Navbar$withAnimation(
 									rundis$elm_bootstrap$Bootstrap$Navbar$config(author$project$Main$NavbarMsg))))))),
-				author$project$Main$textFromBoard(
-				author$project$Main$boardFromState(model.gameState))
+				author$project$Main$textFromGameState(model.gameState)
 			]));
 };
 var elm$browser$Browser$element = _Browser_element;

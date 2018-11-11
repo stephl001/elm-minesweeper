@@ -229,6 +229,20 @@ isEmptyCell row col board =
     cell == Empty
 
 
+isRevealedCell : Row -> Column -> GameBoard -> Bool
+isRevealedCell row col board =
+    let
+        cell =
+            getCellOrDefault (Unrevealed Empty) ( row, col ) board
+    in
+    case cell of
+        Unrevealed _ ->
+            False
+
+        Revealed _ ->
+            True
+
+
 mapRows : (Row -> a) -> GameBoard -> List a
 mapRows f board =
     let
@@ -348,6 +362,7 @@ type Msg
     | GenerateMedium Row Column
     | GenerateHard Row Column
     | GeneratedBoard Row Column GameBoard
+    | RevealCell Row Column
     | NavbarMsg Navbar.State
 
 
@@ -369,7 +384,7 @@ update msg model =
                     peek row col board |> Maybe.withDefault Bomb
             in
             if targetCell == Empty then
-                ( { model | gameState = Playing board }, Cmd.none )
+                { model | gameState = Playing board } |> update (RevealCell row col)
 
             else
                 ( model, board |> randomGeneratorFromBoard |> Random.generate (GeneratedBoard row col) )
@@ -385,8 +400,36 @@ update msg model =
                 Hard ->
                     ( { model | gameState = notStartedHard }, Cmd.none )
 
+        RevealCell row col ->
+            revealGameCell row col model
+
         NavbarMsg state ->
             ( { model | navbarState = state }, Cmd.none )
+
+
+revealGameCell : Row -> Column -> Model -> ( Model, Cmd Msg )
+revealGameCell row col model =
+    let
+        board =
+            boardFromState model.gameState
+
+        ( cell, newBoard ) =
+            reveal row col board
+    in
+    case cell of
+        Nothing ->
+            ( model, Cmd.none )
+
+        Just c ->
+            case c of
+                Bomb ->
+                    ( { model | gameState = GameOver (revealBoard board) }, Cmd.none )
+
+                Empty ->
+                    ( { model | gameState = Playing newBoard }, Cmd.none )
+
+                BombNeighbor _ ->
+                    ( { model | gameState = Playing newBoard }, Cmd.none )
 
 
 
@@ -439,7 +482,7 @@ view model =
                     }
                 ]
             |> Navbar.view model.navbarState
-        , model.gameState |> boardFromState |> textFromBoard
+        , model.gameState |> textFromGameState
         ]
 
 
@@ -459,33 +502,69 @@ boardFromState state =
             generateUninitializedBoard 0 0
 
 
-textFromBoard : GameBoard -> Html Msg
-textFromBoard board =
-    Grid.container [] <| toTableRows board
+textFromGameState : GameState -> Html Msg
+textFromGameState =
+    toTableRows >> Grid.container []
 
 
-toTableRows : GameBoard -> List (Html Msg)
-toTableRows board =
-    board |> mapRows (toTableRow board)
+toTableRows : GameState -> List (Html Msg)
+toTableRows state =
+    state |> boardFromState |> mapRows (toTableRow state)
 
 
-toTableRow : GameBoard -> Row -> Html Msg
-toTableRow board row =
-    Grid.row [] <| mapRowCells row (toTableCell board row) board
-
-
-toTableCell : GameBoard -> Row -> Column -> GameCell -> Grid.Column Msg
-toTableCell board row col gcell =
+toTableRow : GameState -> Row -> Html Msg
+toTableRow state row =
     let
+        board =
+            boardFromState state
+    in
+    Grid.row [] <| mapRowCells row (toTableCell state row) board
+
+
+toTableCell : GameState -> Row -> Column -> GameCell -> Grid.Column Msg
+toTableCell state row col gcell =
+    let
+        board =
+            boardFromState state
+
         generationHandler =
             generatorFromBoard board
     in
     Grid.col
         []
         [ Button.button
-            [ Button.attrs [ onClick (generationHandler row col) ] ]
+            [ Button.attrs <| getButtonAttributes state row col ]
             [ textFromGameCell gcell ]
         ]
+
+
+getButtonAttributes : GameState -> Row -> Column -> List (Html.Attribute Msg)
+getButtonAttributes state row col =
+    let
+        generationHandler =
+            generatorFromGameState state
+    in
+    case state of
+        NotStarted _ _ ->
+            [ onClick (generationHandler row col) ]
+
+        Playing board ->
+            if isRevealedCell row col board then
+                []
+
+            else
+                [ onClick (RevealCell row col) ]
+
+        GameOver _ ->
+            []
+
+        Completed _ ->
+            []
+
+
+generatorFromGameState : GameState -> (Row -> Column -> Msg)
+generatorFromGameState =
+    boardFromState >> generatorFromBoard
 
 
 generatorFromBoard : GameBoard -> (Row -> Column -> Msg)
