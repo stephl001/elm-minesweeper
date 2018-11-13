@@ -200,8 +200,8 @@ boardCellFromGameBoardCell cell =
             bc
 
 
-reveal : Row -> Column -> GameBoard -> ( Maybe Cell, GameBoard )
-reveal row col board =
+reveal : ( Row, Column ) -> GameBoard -> ( Maybe Cell, GameBoard )
+reveal ( row, col ) board =
     let
         boardCell =
             Array2D.get row col board
@@ -215,25 +215,25 @@ reveal row col board =
             ( boardCell, board |> Array2D.set row col (Revealed c) )
 
 
-peek : Row -> Column -> GameBoard -> Maybe Cell
-peek row col =
-    reveal row col >> Tuple.first
+peek : ( Row, Column ) -> GameBoard -> Maybe Cell
+peek pos =
+    reveal pos >> Tuple.first
 
 
-isEmptyCell : Row -> Column -> GameBoard -> Bool
-isEmptyCell row col board =
+isEmptyCell : ( Row, Column ) -> GameBoard -> Bool
+isEmptyCell pos board =
     let
         cell =
-            peek row col board |> Maybe.withDefault Empty
+            peek pos board |> Maybe.withDefault Empty
     in
     cell == Empty
 
 
-isRevealedCell : Row -> Column -> GameBoard -> Bool
-isRevealedCell row col board =
+isRevealedCell : GameBoard -> ( Row, Column ) -> Bool
+isRevealedCell board pos =
     let
         cell =
-            getCellOrDefault (Unrevealed Empty) ( row, col ) board
+            getCellOrDefault (Unrevealed Empty) pos board
     in
     case cell of
         Unrevealed _ ->
@@ -381,7 +381,7 @@ update msg model =
         GeneratedBoard row col board ->
             let
                 targetCell =
-                    peek row col board |> Maybe.withDefault Bomb
+                    peek ( row, col ) board |> Maybe.withDefault Bomb
             in
             if targetCell == Empty then
                 { model | gameState = Playing board } |> update (RevealCell row col)
@@ -401,20 +401,23 @@ update msg model =
                     ( { model | gameState = notStartedHard }, Cmd.none )
 
         RevealCell row col ->
-            revealGameCell row col model
+            revealGameCell ( row, col ) model
 
         NavbarMsg state ->
             ( { model | navbarState = state }, Cmd.none )
 
 
-revealGameCell : Row -> Column -> Model -> ( Model, Cmd Msg )
-revealGameCell row col model =
+revealGameCell : ( Row, Column ) -> Model -> ( Model, Cmd Msg )
+revealGameCell pos model =
     let
         board =
             boardFromState model.gameState
 
         ( cell, newBoard ) =
-            reveal row col board
+            reveal pos board
+
+        revealEmptyCells =
+            revealSiblingCells pos
     in
     case cell of
         Nothing ->
@@ -426,10 +429,24 @@ revealGameCell row col model =
                     ( { model | gameState = GameOver (revealBoard board) }, Cmd.none )
 
                 Empty ->
-                    ( { model | gameState = Playing newBoard }, Cmd.none )
+                    ( { model | gameState = Playing newBoard } |> revealEmptyCells, Cmd.none )
 
                 BombNeighbor _ ->
                     ( { model | gameState = Playing newBoard }, Cmd.none )
+
+
+revealSiblingCells : ( Row, Column ) -> Model -> Model
+revealSiblingCells pos ({ gameState } as model) =
+    let
+        board =
+            boardFromState model.gameState
+
+        isNotRevealed =
+            not << isRevealedCell board
+    in
+    possibleNeighbors pos
+        |> List.filter isNotRevealed
+        |> List.foldl (\p m -> revealGameCell p m |> Tuple.first) model
 
 
 
@@ -549,7 +566,7 @@ getButtonAttributes state row col =
             [ onClick (generationHandler row col) ]
 
         Playing board ->
-            if isRevealedCell row col board then
+            if isRevealedCell board ( row, col ) then
                 []
 
             else

@@ -6973,8 +6973,10 @@ var tortus$elm_array_2d$Array2D$set = F4(
 				},
 				A2(tortus$elm_array_2d$Array2D$getRow, row, array2d)));
 	});
-var author$project$Main$reveal = F3(
-	function (row, col, board) {
+var author$project$Main$reveal = F2(
+	function (_n0, board) {
+		var row = _n0.a;
+		var col = _n0.b;
 		var boardCell = A2(
 			elm$core$Maybe$map,
 			author$project$Main$boardCellFromGameBoardCell,
@@ -6993,13 +6995,12 @@ var author$project$Main$reveal = F3(
 					board));
 		}
 	});
-var author$project$Main$peek = F2(
-	function (row, col) {
-		return A2(
-			elm$core$Basics$composeR,
-			A2(author$project$Main$reveal, row, col),
-			elm$core$Tuple$first);
-	});
+var author$project$Main$peek = function (pos) {
+	return A2(
+		elm$core$Basics$composeR,
+		author$project$Main$reveal(pos),
+		elm$core$Tuple$first);
+};
 var tortus$elm_array_2d$Array2D$columns = function (array2d) {
 	return array2d.columns;
 };
@@ -7062,12 +7063,27 @@ var author$project$Main$boardFromState = function (state) {
 			return A2(author$project$Main$generateUninitializedBoard, 0, 0);
 	}
 };
+var author$project$Main$isRevealedCell = F2(
+	function (board, pos) {
+		var cell = A3(
+			author$project$Main$getCellOrDefault,
+			author$project$Main$Unrevealed(author$project$Main$Empty),
+			pos,
+			board);
+		if (cell.$ === 'Unrevealed') {
+			return false;
+		} else {
+			return true;
+		}
+	});
+var elm$core$Basics$not = _Basics_not;
 var elm$core$Platform$Cmd$batch = _Platform_batch;
 var elm$core$Platform$Cmd$none = elm$core$Platform$Cmd$batch(_List_Nil);
-var author$project$Main$revealGameCell = F3(
-	function (row, col, model) {
+var author$project$Main$revealGameCell = F2(
+	function (pos, model) {
+		var revealEmptyCells = author$project$Main$revealSiblingCells(pos);
 		var board = author$project$Main$boardFromState(model.gameState);
-		var _n0 = A3(author$project$Main$reveal, row, col, board);
+		var _n0 = A2(author$project$Main$reveal, pos, board);
 		var cell = _n0.a;
 		var newBoard = _n0.b;
 		if (cell.$ === 'Nothing') {
@@ -7086,11 +7102,12 @@ var author$project$Main$revealGameCell = F3(
 						elm$core$Platform$Cmd$none);
 				case 'Empty':
 					return _Utils_Tuple2(
-						_Utils_update(
-							model,
-							{
-								gameState: author$project$Main$Playing(newBoard)
-							}),
+						revealEmptyCells(
+							_Utils_update(
+								model,
+								{
+									gameState: author$project$Main$Playing(newBoard)
+								})),
 						elm$core$Platform$Cmd$none);
 				default:
 					return _Utils_Tuple2(
@@ -7102,6 +7119,26 @@ var author$project$Main$revealGameCell = F3(
 						elm$core$Platform$Cmd$none);
 			}
 		}
+	});
+var author$project$Main$revealSiblingCells = F2(
+	function (pos, model) {
+		var gameState = model.gameState;
+		var board = author$project$Main$boardFromState(model.gameState);
+		var isNotRevealed = A2(
+			elm$core$Basics$composeL,
+			elm$core$Basics$not,
+			author$project$Main$isRevealedCell(board));
+		return A3(
+			elm$core$List$foldl,
+			F2(
+				function (p, m) {
+					return A2(author$project$Main$revealGameCell, p, m).a;
+				}),
+			model,
+			A2(
+				elm$core$List$filter,
+				isNotRevealed,
+				author$project$Main$possibleNeighbors(pos)));
 	});
 var elm$random$Random$Generate = function (a) {
 	return {$: 'Generate', a: a};
@@ -7217,7 +7254,10 @@ var author$project$Main$update = F2(
 				var targetCell = A2(
 					elm$core$Maybe$withDefault,
 					author$project$Main$Bomb,
-					A3(author$project$Main$peek, row, col, board));
+					A2(
+						author$project$Main$peek,
+						_Utils_Tuple2(row, col),
+						board));
 				return _Utils_eq(targetCell, author$project$Main$Empty) ? A2(
 					author$project$Main$update,
 					A2(author$project$Main$RevealCell, row, col),
@@ -7256,7 +7296,10 @@ var author$project$Main$update = F2(
 			case 'RevealCell':
 				var row = msg.a;
 				var col = msg.b;
-				return A3(author$project$Main$revealGameCell, row, col, model);
+				return A2(
+					author$project$Main$revealGameCell,
+					_Utils_Tuple2(row, col),
+					model);
 			default:
 				var state = msg.a;
 				return _Utils_Tuple2(
@@ -7320,19 +7363,6 @@ var author$project$Main$generatorFromBoardWidth = function (width) {
 };
 var author$project$Main$generatorFromBoard = A2(elm$core$Basics$composeR, author$project$Main$getBoardWidth, author$project$Main$generatorFromBoardWidth);
 var author$project$Main$generatorFromGameState = A2(elm$core$Basics$composeR, author$project$Main$boardFromState, author$project$Main$generatorFromBoard);
-var author$project$Main$isRevealedCell = F3(
-	function (row, col, board) {
-		var cell = A3(
-			author$project$Main$getCellOrDefault,
-			author$project$Main$Unrevealed(author$project$Main$Empty),
-			_Utils_Tuple2(row, col),
-			board);
-		if (cell.$ === 'Unrevealed') {
-			return false;
-		} else {
-			return true;
-		}
-	});
 var elm$virtual_dom$VirtualDom$Normal = function (a) {
 	return {$: 'Normal', a: a};
 };
@@ -7362,7 +7392,10 @@ var author$project$Main$getButtonAttributes = F3(
 					]);
 			case 'Playing':
 				var board = state.a;
-				return A3(author$project$Main$isRevealedCell, row, col, board) ? _List_Nil : _List_fromArray(
+				return A2(
+					author$project$Main$isRevealedCell,
+					board,
+					_Utils_Tuple2(row, col)) ? _List_Nil : _List_fromArray(
 					[
 						elm$html$Html$Events$onClick(
 						A2(author$project$Main$RevealCell, row, col))
@@ -8634,7 +8667,6 @@ var rundis$elm_bootstrap$Bootstrap$Navbar$maybeBrand = function (brand_) {
 		return _List_Nil;
 	}
 };
-var elm$core$Basics$not = _Basics_not;
 var rundis$elm_bootstrap$Bootstrap$Navbar$sizeToComparable = function (size) {
 	switch (size.$) {
 		case 'XS':
