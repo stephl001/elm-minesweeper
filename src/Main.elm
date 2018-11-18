@@ -322,10 +322,18 @@ getBoardStats board =
     let
         rowCount =
             Array2D.rows board
+
+        getRow =
+            flip Array2D.getRow
+
+        getRowOrDefault =
+            getRow board >> Maybe.withDefault Array.empty
+
+        statsFromCellsArray =
+            Array.map statsFromCell >> Array.foldl combineStats emptyBoardStats
     in
     List.range 0 (rowCount - 1)
-        |> List.map (\rowIndex -> Array2D.getRow rowIndex board |> Maybe.withDefault Array.empty)
-        |> List.map (Array.map statsFromCell >> Array.foldl combineStats emptyBoardStats)
+        |> List.map (getRowOrDefault >> statsFromCellsArray)
         |> List.foldl combineStats emptyBoardStats
 
 

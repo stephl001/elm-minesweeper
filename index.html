@@ -7346,26 +7346,24 @@ var tortus$elm_array_2d$Array2D$rows = function (array2d) {
 	return elm$core$Array$length(array2d.data);
 };
 var author$project$Main$getBoardStats = function (board) {
+	var statsFromCellsArray = A2(
+		elm$core$Basics$composeR,
+		elm$core$Array$map(author$project$Main$statsFromCell),
+		A2(elm$core$Array$foldl, author$project$Main$combineStats, author$project$Main$emptyBoardStats));
 	var rowCount = tortus$elm_array_2d$Array2D$rows(board);
+	var getRow = author$project$Main$flip(tortus$elm_array_2d$Array2D$getRow);
+	var getRowOrDefault = A2(
+		elm$core$Basics$composeR,
+		getRow(board),
+		elm$core$Maybe$withDefault(elm$core$Array$empty));
 	return A3(
 		elm$core$List$foldl,
 		author$project$Main$combineStats,
 		author$project$Main$emptyBoardStats,
 		A2(
 			elm$core$List$map,
-			A2(
-				elm$core$Basics$composeR,
-				elm$core$Array$map(author$project$Main$statsFromCell),
-				A2(elm$core$Array$foldl, author$project$Main$combineStats, author$project$Main$emptyBoardStats)),
-			A2(
-				elm$core$List$map,
-				function (rowIndex) {
-					return A2(
-						elm$core$Maybe$withDefault,
-						elm$core$Array$empty,
-						A2(tortus$elm_array_2d$Array2D$getRow, rowIndex, board));
-				},
-				A2(elm$core$List$range, 0, rowCount - 1))));
+			A2(elm$core$Basics$composeR, getRowOrDefault, statsFromCellsArray),
+			A2(elm$core$List$range, 0, rowCount - 1)));
 };
 var author$project$Main$boardStatsFromGameState = A2(elm$core$Basics$composeR, author$project$Main$boardFromState, author$project$Main$getBoardStats);
 var author$project$Main$subtitleFromGameState = function (state) {
