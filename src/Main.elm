@@ -4,6 +4,8 @@ import Array
 import Array2D exposing (..)
 import Bootstrap.Button as Button
 import Bootstrap.CDN as CDN
+import Bootstrap.Card as Card
+import Bootstrap.Card.Block as Block
 import Bootstrap.Grid as Grid
 import Bootstrap.Navbar as Navbar
 import Browser
@@ -56,6 +58,10 @@ type alias Height =
 
 
 type alias Width =
+    Int
+
+
+type alias BombCount =
     Int
 
 
@@ -266,6 +272,63 @@ getBoardWidth =
     Array2D.columns
 
 
+getCellsCount : Board a -> Int
+getCellsCount board =
+    let
+        height =
+            Array2D.rows board
+
+        width =
+            Array2D.columns board
+    in
+    height * width
+
+
+type alias BoardStats =
+    { cellsCount : Int
+    , bombsCount : Int
+    , unrevealedCellsCount : Int
+    }
+
+
+emptyBoardStats : BoardStats
+emptyBoardStats =
+    BoardStats 0 0 0
+
+
+statsFromCell : GameCell -> BoardStats
+statsFromCell cell =
+    case cell of
+        Revealed Bomb ->
+            { cellsCount = 1, bombsCount = 1, unrevealedCellsCount = 0 }
+
+        Revealed _ ->
+            { cellsCount = 1, bombsCount = 0, unrevealedCellsCount = 0 }
+
+        Unrevealed Bomb ->
+            { cellsCount = 1, bombsCount = 1, unrevealedCellsCount = 1 }
+
+        Unrevealed _ ->
+            { cellsCount = 1, bombsCount = 0, unrevealedCellsCount = 1 }
+
+
+combineStats : BoardStats -> BoardStats -> BoardStats
+combineStats stats1 stats2 =
+    BoardStats (stats1.cellsCount + stats2.cellsCount) (stats1.bombsCount + stats2.bombsCount) (stats1.unrevealedCellsCount + stats2.unrevealedCellsCount)
+
+
+getBoardStats : GameBoard -> BoardStats
+getBoardStats board =
+    let
+        rowCount =
+            Array2D.rows board
+    in
+    List.range 0 (rowCount - 1)
+        |> List.map (\rowIndex -> Array2D.getRow rowIndex board |> Maybe.withDefault Array.empty)
+        |> List.map (Array.map statsFromCell >> Array.foldl combineStats emptyBoardStats)
+        |> List.foldl combineStats emptyBoardStats
+
+
 
 --- Board Generation Section
 
@@ -287,7 +350,7 @@ unmaskedBoardFromShuffledList w =
     shuffle >> Random.map (unmaskedBoardFromList w)
 
 
-generateRandomBoard : Height -> Width -> Int -> Random.Generator GameBoard
+generateRandomBoard : Height -> Width -> BombCount -> Random.Generator GameBoard
 generateRandomBoard h w bombs =
     generateBoardList h w bombs
         |> unmaskedBoardFromShuffledList w
@@ -408,10 +471,10 @@ update msg model =
 
 
 revealGameCell : ( Row, Column ) -> Model -> ( Model, Cmd Msg )
-revealGameCell pos model =
+revealGameCell pos ({ gameState } as model) =
     let
         board =
-            boardFromState model.gameState
+            boardFromState gameState
 
         ( cell, newBoard ) =
             reveal pos board
@@ -499,7 +562,7 @@ view model =
                     }
                 ]
             |> Navbar.view model.navbarState
-        , model.gameState |> textFromGameState
+        , model.gameState |> viewGameState
         ]
 
 
@@ -517,6 +580,54 @@ boardFromState state =
 
         _ ->
             generateUninitializedBoard 0 0
+
+
+viewGameState : GameState -> Html Msg
+viewGameState gameState =
+    div []
+        [ Card.config []
+            |> Card.block []
+                [ Block.titleH4 [] [ titleFromGameState gameState |> text ]
+                , Block.text [] [ subtitleFromGameState gameState |> text ]
+                ]
+            |> Card.view
+        , gameState |> textFromGameState
+        ]
+
+
+titleFromGameState : GameState -> String
+titleFromGameState state =
+    case state of
+        NotStarted _ _ ->
+            "Not Started"
+
+        Playing _ ->
+            "Currently Playing"
+
+        GameOver _ ->
+            "Game Over!"
+
+        Completed _ ->
+            "Congratulations! You Won!"
+
+
+boardStatsFromGameState : GameState -> BoardStats
+boardStatsFromGameState =
+    boardFromState >> getBoardStats
+
+
+subtitleFromGameState : GameState -> String
+subtitleFromGameState state =
+    let
+        boardStats =
+            boardStatsFromGameState state
+    in
+    case state of
+        Playing _ ->
+            "Bombs: " ++ String.fromInt boardStats.bombsCount ++ " -- Unrevealed Cells: " ++ String.fromInt boardStats.unrevealedCellsCount
+
+        _ ->
+            ""
 
 
 textFromGameState : GameState -> Html Msg
