@@ -2,13 +2,13 @@ module Main exposing (GameState, Msg(..), init, main, update, view)
 
 import Array
 import Array2D exposing (..)
-import Bootstrap.Button as Button
-import Bootstrap.CDN as CDN
-import Bootstrap.Card as Card
-import Bootstrap.Card.Block as Block
-import Bootstrap.Grid as Grid
-import Bootstrap.Navbar as Navbar
 import Browser
+import Element exposing (Element, alignRight, centerX, centerY, column, el, fill, height, padding, px, rgb255, row, spacing, text, width)
+import Element.Background as Background
+import Element.Border as Border
+import Element.Events as Events
+import Element.Font as Font
+import Element.Input as Input
 import Html exposing (..)
 import Html.Attributes exposing (class, href, src, style)
 import Html.Events exposing (onClick)
@@ -74,7 +74,6 @@ type GameState
 
 type alias Model =
     { gameState : GameState
-    , navbarState : Navbar.State
     }
 
 
@@ -401,11 +400,7 @@ notStartedHard =
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
-    let
-        ( navbarState, navbarCmd ) =
-            Navbar.initialState NavbarMsg
-    in
-    ( { gameState = notStartedEasy, navbarState = navbarState }, navbarCmd )
+    ( { gameState = notStartedEasy }, Cmd.none )
 
 
 
@@ -413,8 +408,8 @@ init _ =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
-    Navbar.subscriptions model.navbarState NavbarMsg
+subscriptions _ =
+    Sub.none
 
 
 
@@ -434,7 +429,6 @@ type Msg
     | GenerateHard Row Column
     | GeneratedBoard Row Column GameBoard
     | RevealCell Row Column
-    | NavbarMsg Navbar.State
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -473,9 +467,6 @@ update msg model =
 
         RevealCell row col ->
             revealGameCell ( row, col ) model
-
-        NavbarMsg state ->
-            ( { model | navbarState = state }, Cmd.none )
 
 
 revealGameCell : ( Row, Column ) -> Model -> ( Model, Cmd Msg )
@@ -525,53 +516,51 @@ revealSiblingCells pos ({ gameState } as model) =
 
 
 view : Model -> Html Msg
-view model =
-    Grid.container []
-        -- Wrap in a container to center the navbar
-        [ CDN.stylesheet
-        , Navbar.config NavbarMsg
-            |> Navbar.withAnimation
-            |> Navbar.collapseMedium
-            -- Collapse menu at the medium breakpoint
-            |> Navbar.info
-            -- Customize coloring
-            |> Navbar.brand
-                -- Add logo to your brand with a little styling to align nicely
-                [ href "#" ]
-                [ img
-                    [ src "assets/images/elm-bootstrap.svg"
-                    , class "d-inline-block align-top"
-                    , style "width" "30px"
-                    ]
-                    []
-                , text " Minesweeper"
-                ]
-            |> Navbar.items
-                [ Navbar.dropdown
-                    -- Adding dropdowns is pretty simple
-                    { id = "mydropdown"
-                    , toggle = Navbar.dropdownToggle [] [ text "Nouvelle Partie" ]
-                    , items =
-                        [ Navbar.dropdownHeader [ text "Heading" ]
-                        , Navbar.dropdownItem
-                            [ href "#", onClick (NewGame Easy) ]
-                            [ text "Facile (9x9)" ]
-                        , Navbar.dropdownItem
-                            [ href "#", onClick (NewGame Medium) ]
-                            [ text "Moyen (16x16)" ]
-                        , Navbar.dropdownItem
-                            [ href "#", onClick (NewGame Hard) ]
-                            [ text "Difficile (16x30)" ]
-                        , Navbar.dropdownDivider
-                        , Navbar.dropdownItem
-                            [ href "#" ]
-                            [ text "Options..." ]
-                        ]
-                    }
-                ]
-            |> Navbar.view model.navbarState
-        , model.gameState |> viewGameState
+view =
+    mainDisplay >> Element.layout []
+
+
+
+--, model.gameState |> viewGameState
+
+
+mainDisplay : Model -> Element.Element Msg
+mainDisplay { gameState } =
+    column [ width fill ]
+        [ gameHeader gameState
+        , notificationBar gameState
+        , boardView gameState
         ]
+
+
+gameHeader : GameState -> Element.Element Msg
+gameHeader _ =
+    row [ width fill, centerX ] [ gameTitle ]
+
+
+gameTitle : Element.Element Msg
+gameTitle =
+    Element.el
+        [ Font.color (Element.rgb 0 0 1)
+        , Font.size 40
+        , Font.family
+            [ Font.typeface "Comic Sans MS"
+            , Font.sansSerif
+            ]
+        , centerX
+        , padding 20
+        ]
+        (Element.text "Minesweeper")
+
+
+notificationBar : GameState -> Element.Element Msg
+notificationBar _ =
+    row [ width fill, Background.color (Element.rgb 0 1 0), height (px 50) ] []
+
+
+boardView : GameState -> Element.Element Msg
+boardView =
+    drawBoard >> column [ centerX ] >> List.singleton >> row [ width fill ]
 
 
 boardFromState : GameState -> GameBoard
@@ -588,19 +577,6 @@ boardFromState state =
 
         _ ->
             generateUninitializedBoard 0 0
-
-
-viewGameState : GameState -> Html Msg
-viewGameState gameState =
-    div []
-        [ Card.config []
-            |> Card.block []
-                [ Block.titleH4 [] [ titleFromGameState gameState |> text ]
-                , Block.text [] [ subtitleFromGameState gameState |> text ]
-                ]
-            |> Card.view
-        , gameState |> textFromGameState
-        ]
 
 
 titleFromGameState : GameState -> String
@@ -638,27 +614,35 @@ subtitleFromGameState state =
             ""
 
 
-textFromGameState : GameState -> Html Msg
-textFromGameState =
-    toTableRows >> Grid.container []
-
-
-toTableRows : GameState -> List (Html Msg)
-toTableRows state =
-    state |> boardFromState |> mapRows (toTableRow state)
-
-
-toTableRow : GameState -> Row -> Html Msg
-toTableRow state row =
+drawBoard : GameState -> List (Element.Element Msg)
+drawBoard state =
     let
         board =
             boardFromState state
     in
-    Grid.row [] <| mapRowCells row (toTableCell state row) board
+    board |> mapRows (toTableRow state)
 
 
-toTableCell : GameState -> Row -> Column -> GameCell -> Grid.Column Msg
+toTableRow : GameState -> Row -> Element.Element Msg
+toTableRow state rowIndex =
+    let
+        board =
+            boardFromState state
+    in
+    row [ padding 5, spacing 10 ] <| mapRowCells rowIndex (toTableCell state rowIndex) board
+
+
+toTableCell : GameState -> Row -> Column -> GameCell -> Element.Element Msg
 toTableCell state row col gcell =
+    el
+        (getButtonAttributes state row col
+            ++ [ width (px 50), height (px 50), Border.solid, Border.width 1 ]
+        )
+        (textFromGameCell gcell)
+
+
+getButtonAttributes : GameState -> Row -> Column -> List (Element.Attribute Msg)
+getButtonAttributes state row col =
     let
         board =
             boardFromState state
@@ -666,30 +650,16 @@ toTableCell state row col gcell =
         generationHandler =
             generatorFromBoard board
     in
-    Grid.col
-        []
-        [ Button.button
-            [ Button.attrs <| getButtonAttributes state row col ]
-            [ textFromGameCell gcell ]
-        ]
-
-
-getButtonAttributes : GameState -> Row -> Column -> List (Html.Attribute Msg)
-getButtonAttributes state row col =
-    let
-        generationHandler =
-            generatorFromGameState state
-    in
     case state of
         NotStarted _ _ ->
-            [ onClick (generationHandler row col) ]
+            [ Events.onClick (generationHandler row col) ]
 
-        Playing board ->
+        Playing _ ->
             if isRevealedCell board ( row, col ) then
                 []
 
             else
-                [ onClick (RevealCell row col) ]
+                [ Events.onClick (RevealCell row col) ]
 
         GameOver _ ->
             []
@@ -739,14 +709,14 @@ randomGeneratorFromBoardWidth width =
             generateEasyRandomBoard
 
 
-textFromGameCell : GameCell -> Html Msg
+textFromGameCell : GameCell -> Element.Element Msg
 textFromGameCell gcell =
     case gcell of
         Unrevealed c ->
-            text ("U-" ++ stringFromCell c)
+            Element.text ("U-" ++ stringFromCell c)
 
         Revealed c ->
-            text ("R-" ++ stringFromCell c)
+            Element.text ("R-" ++ stringFromCell c)
 
 
 stringFromCell : Cell -> String
