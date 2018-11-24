@@ -515,13 +515,9 @@ revealSiblingCells pos ({ gameState } as model) =
 ---- VIEW ----
 
 
-view : Model -> Html Msg
+view : Model -> Browser.Document Msg
 view =
-    mainDisplay >> Element.layout []
-
-
-
---, model.gameState |> viewGameState
+    mainDisplay >> Element.layout [] >> List.singleton >> Browser.Document "Minesweeper"
 
 
 mainDisplay : Model -> Element.Element Msg
@@ -738,7 +734,7 @@ stringFromCell c =
 
 main : Program () Model Msg
 main =
-    Browser.element
+    Browser.document
         { view = view
         , init = init
         , update = update
