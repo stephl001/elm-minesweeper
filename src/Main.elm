@@ -3,7 +3,7 @@ module Main exposing (GameState, Msg(..), init, main, update, view)
 import Array
 import Array2D exposing (..)
 import Browser
-import Element exposing (Element, alignRight, centerX, centerY, column, el, fill, height, padding, px, rgb255, row, spacing, text, width)
+import Element exposing (Element, alignRight, centerX, centerY, column, el, fill, height, htmlAttribute, padding, px, rgb255, row, spacing, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Events as Events
@@ -11,7 +11,8 @@ import Element.Font as Font
 import Element.Input as Input
 import Html exposing (..)
 import Html.Attributes exposing (class, href, src, style)
-import Html.Events exposing (onClick)
+import Html.Events exposing (preventDefaultOn)
+import Json.Decode as Decode
 import List.Extra exposing (cartesianProduct, groupsOf)
 import Random
 import Random.List exposing (shuffle)
@@ -35,6 +36,7 @@ type Cell
 type GameCell
     = Unrevealed Cell
     | Revealed Cell
+    | Flagged Cell
 
 
 type alias Board boardCell =
@@ -163,6 +165,9 @@ toRevealedCell cell =
         Unrevealed c ->
             Revealed c
 
+        Flagged c ->
+            Revealed c
+
         Revealed _ ->
             cell
 
@@ -201,12 +206,15 @@ boardCellFromGameBoardCell cell =
         Unrevealed bc ->
             bc
 
+        Flagged bc ->
+            bc
+
         Revealed bc ->
             bc
 
 
-reveal : ( Row, Column ) -> GameBoard -> ( Maybe Cell, GameBoard )
-reveal ( row, col ) board =
+updateCell : (Cell -> GameCell) -> ( Row, Column ) -> GameBoard -> ( Maybe Cell, GameBoard )
+updateCell toGameCell ( row, col ) board =
     let
         boardCell =
             Array2D.get row col board
@@ -217,7 +225,25 @@ reveal ( row, col ) board =
             ( boardCell, board )
 
         Just c ->
-            ( boardCell, board |> Array2D.set row col (Revealed c) )
+            ( boardCell, board |> Array2D.set row col (toGameCell c) )
+
+
+reveal : ( Row, Column ) -> GameBoard -> ( Maybe Cell, GameBoard )
+reveal =
+    updateCell Revealed
+
+
+flag : ( Row, Column ) -> GameBoard -> ( Maybe Cell, GameBoard )
+flag pos board =
+    let
+        cellTransform =
+            if isFlagedCell board pos then
+                Unrevealed
+
+            else
+                Flagged
+    in
+    updateCell cellTransform pos board
 
 
 peek : ( Row, Column ) -> GameBoard -> Maybe Cell
@@ -244,8 +270,28 @@ isRevealedCell board pos =
         Unrevealed _ ->
             False
 
+        Flagged _ ->
+            False
+
         Revealed _ ->
             True
+
+
+isFlagedCell : GameBoard -> ( Row, Column ) -> Bool
+isFlagedCell board pos =
+    let
+        cell =
+            getCellOrDefault (Unrevealed Empty) pos board
+    in
+    case cell of
+        Unrevealed _ ->
+            False
+
+        Flagged _ ->
+            True
+
+        Revealed _ ->
+            False
 
 
 mapRows : (Row -> a) -> GameBoard -> List a
@@ -308,6 +354,12 @@ statsFromCell cell =
             { cellsCount = 1, bombsCount = 1, unrevealedCellsCount = 1 }
 
         Unrevealed _ ->
+            { cellsCount = 1, bombsCount = 0, unrevealedCellsCount = 1 }
+
+        Flagged Bomb ->
+            { cellsCount = 1, bombsCount = 1, unrevealedCellsCount = 1 }
+
+        Flagged _ ->
             { cellsCount = 1, bombsCount = 0, unrevealedCellsCount = 1 }
 
 
@@ -429,6 +481,7 @@ type Msg
     | GenerateHard Row Column
     | GeneratedBoard Row Column GameBoard
     | RevealCell Row Column
+    | FlagCell Row Column
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -467,6 +520,21 @@ update msg model =
 
         RevealCell row col ->
             revealGameCell ( row, col ) model
+
+        FlagCell row col ->
+            flagGameCell ( row, col ) model
+
+
+flagGameCell : ( Row, Column ) -> Model -> ( Model, Cmd Msg )
+flagGameCell pos ({ gameState } as model) =
+    let
+        board =
+            boardFromState gameState
+
+        ( cell, newBoard ) =
+            flag pos board
+    in
+    ( { model | gameState = Playing newBoard }, Cmd.none )
 
 
 revealGameCell : ( Row, Column ) -> Model -> ( Model, Cmd Msg )
@@ -655,7 +723,9 @@ getButtonAttributes state row col =
                 []
 
             else
-                [ Events.onClick (RevealCell row col) ]
+                [ Events.onClick (RevealCell row col)
+                , preventDefaultOn "contextmenu" (Decode.succeed ( FlagCell row col, True )) |> htmlAttribute
+                ]
 
         GameOver _ ->
             []
@@ -710,6 +780,9 @@ textFromGameCell gcell =
     case gcell of
         Unrevealed c ->
             Element.text ("U-" ++ stringFromCell c)
+
+        Flagged c ->
+            Element.text ("F-" ++ stringFromCell c)
 
         Revealed c ->
             Element.text ("R-" ++ stringFromCell c)
