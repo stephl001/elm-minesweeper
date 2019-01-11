@@ -775,9 +775,9 @@ randomGeneratorFromBoardWidth width =
             generateEasyRandomBoard
 
 
-fixedImage : String -> String -> Element.Element Msg
-fixedImage src description =
-    Element.image [ width (px 50), height (px 50) ] { src = src, description = description }
+fixedImage : String -> Element.Element Msg
+fixedImage src =
+    Element.image [ width (px 50), height (px 50) ] { src = src, description = "" }
 
 
 textFromGameCell : GameCell -> Element.Element Msg
@@ -787,7 +787,7 @@ textFromGameCell gcell =
             Element.text ""
 
         Flagged c ->
-            fixedImage "images/flag.png" "Flagged"
+            fixedImage "images/flag.png"
 
         Revealed c ->
             elementFromCell c
@@ -802,10 +802,10 @@ elementFromCell c =
                 (Element.text "")
 
         Bomb ->
-            fixedImage "images/bomb.png" "Bomb"
+            fixedImage "images/bomb.png"
 
         BombNeighbor i ->
-            fixedImage ("images/" ++ String.fromInt i ++ ".png") "Flagged"
+            fixedImage ("images/" ++ String.fromInt i ++ ".png")
 
 
 
