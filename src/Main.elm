@@ -775,30 +775,37 @@ randomGeneratorFromBoardWidth width =
             generateEasyRandomBoard
 
 
+fixedImage : String -> String -> Element.Element Msg
+fixedImage src description =
+    Element.image [ width (px 50), height (px 50) ] { src = src, description = description }
+
+
 textFromGameCell : GameCell -> Element.Element Msg
 textFromGameCell gcell =
     case gcell of
         Unrevealed c ->
-            Element.text ("U-" ++ stringFromCell c)
+            Element.text ""
 
         Flagged c ->
-            Element.text ("F-" ++ stringFromCell c)
+            fixedImage "images/flag.png" "Flagged"
 
         Revealed c ->
-            Element.text ("R-" ++ stringFromCell c)
+            elementFromCell c
 
 
-stringFromCell : Cell -> String
-stringFromCell c =
+elementFromCell : Cell -> Element.Element Msg
+elementFromCell c =
     case c of
         Empty ->
-            "E"
+            Element.el
+                [ width fill, height fill, Background.color (rgb255 211 211 211) ]
+                (Element.text "")
 
         Bomb ->
-            "B"
+            fixedImage "images/bomb.png" "Bomb"
 
         BombNeighbor i ->
-            "N" ++ String.fromInt i
+            fixedImage ("images/" ++ String.fromInt i ++ ".png") "Flagged"
 
 
 
