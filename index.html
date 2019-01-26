@@ -4874,7 +4874,9 @@ var elm$core$Platform$Sub$none = elm$core$Platform$Sub$batch(_List_Nil);
 var author$project$Main$subscriptions = function (_n0) {
 	return elm$core$Platform$Sub$none;
 };
-var author$project$Main$Bomb = {$: 'Bomb'};
+var author$project$Main$Bomb = function (a) {
+	return {$: 'Bomb', a: a};
+};
 var author$project$Main$Empty = {$: 'Empty'};
 var author$project$Main$GeneratedBoard = F3(
 	function (a, b, c) {
@@ -4887,6 +4889,7 @@ var author$project$Main$RevealCell = F2(
 	function (a, b) {
 		return {$: 'RevealCell', a: a, b: b};
 	});
+var author$project$Main$Unexploded = {$: 'Unexploded'};
 var author$project$Main$Uninitialized = {$: 'Uninitialized'};
 var author$project$Main$Unrevealed = function (a) {
 	return {$: 'Unrevealed', a: a};
@@ -5673,7 +5676,7 @@ var author$project$Main$countPreGenerationNeighborBombs = author$project$Main$co
 var author$project$Main$toCell = F3(
 	function (board, pos, cell) {
 		if (cell.$ === 'FutureBomb') {
-			return author$project$Main$Bomb;
+			return author$project$Main$Bomb(author$project$Main$Unexploded);
 		} else {
 			var neighborBombs = A2(author$project$Main$countPreGenerationNeighborBombs, pos, board);
 			return (!neighborBombs) ? author$project$Main$Empty : author$project$Main$BombNeighbor(neighborBombs);
@@ -5759,14 +5762,15 @@ var author$project$Main$boardFromState = function (state) {
 			var height = state.a;
 			var width = state.b;
 			return A2(author$project$Main$generateUninitializedBoard, height, width);
-		case 'Playing':
-			var board = state.a;
-			return board;
 		case 'GameOver':
 			var board = state.a;
 			return author$project$Main$revealBoard(board);
+		case 'Playing':
+			var board = state.a;
+			return board;
 		default:
-			return A2(author$project$Main$generateUninitializedBoard, 0, 0);
+			var board = state.a;
+			return board;
 	}
 };
 var author$project$Main$Flagged = function (a) {
@@ -6137,8 +6141,70 @@ var author$project$Main$randomGeneratorFromBoardWidth = function (width) {
 	}
 };
 var author$project$Main$randomGeneratorFromBoard = A2(elm$core$Basics$composeR, author$project$Main$getBoardWidth, author$project$Main$randomGeneratorFromBoardWidth);
+var author$project$Main$Exploded = {$: 'Exploded'};
 var author$project$Main$GameOver = function (a) {
 	return {$: 'GameOver', a: a};
+};
+var author$project$Main$Completed = function (a) {
+	return {$: 'Completed', a: a};
+};
+var author$project$Main$BoardStats = F3(
+	function (cellsCount, bombsCount, unrevealedCellsCount) {
+		return {bombsCount: bombsCount, cellsCount: cellsCount, unrevealedCellsCount: unrevealedCellsCount};
+	});
+var author$project$Main$combineStats = F2(
+	function (stats1, stats2) {
+		return A3(author$project$Main$BoardStats, stats1.cellsCount + stats2.cellsCount, stats1.bombsCount + stats2.bombsCount, stats1.unrevealedCellsCount + stats2.unrevealedCellsCount);
+	});
+var author$project$Main$emptyBoardStats = A3(author$project$Main$BoardStats, 0, 0, 0);
+var author$project$Main$statsFromCell = function (cell) {
+	switch (cell.$) {
+		case 'Revealed':
+			if (cell.a.$ === 'Bomb') {
+				return {bombsCount: 1, cellsCount: 1, unrevealedCellsCount: 0};
+			} else {
+				return {bombsCount: 0, cellsCount: 1, unrevealedCellsCount: 0};
+			}
+		case 'Unrevealed':
+			if (cell.a.$ === 'Bomb') {
+				return {bombsCount: 1, cellsCount: 1, unrevealedCellsCount: 1};
+			} else {
+				return {bombsCount: 0, cellsCount: 1, unrevealedCellsCount: 1};
+			}
+		default:
+			if (cell.a.$ === 'Bomb') {
+				return {bombsCount: 1, cellsCount: 1, unrevealedCellsCount: 1};
+			} else {
+				return {bombsCount: 0, cellsCount: 1, unrevealedCellsCount: 1};
+			}
+	}
+};
+var tortus$elm_array_2d$Array2D$rows = function (array2d) {
+	return elm$core$Array$length(array2d.data);
+};
+var author$project$Main$getBoardStats = function (board) {
+	var statsFromCellsArray = A2(
+		elm$core$Basics$composeR,
+		elm$core$Array$map(author$project$Main$statsFromCell),
+		A2(elm$core$Array$foldl, author$project$Main$combineStats, author$project$Main$emptyBoardStats));
+	var rowCount = tortus$elm_array_2d$Array2D$rows(board);
+	var getRow = author$project$Main$flip(tortus$elm_array_2d$Array2D$getRow);
+	var getRowOrDefault = A2(
+		elm$core$Basics$composeR,
+		getRow(board),
+		elm$core$Maybe$withDefault(elm$core$Array$empty));
+	return A3(
+		elm$core$List$foldl,
+		author$project$Main$combineStats,
+		author$project$Main$emptyBoardStats,
+		A2(
+			elm$core$List$map,
+			A2(elm$core$Basics$composeR, getRowOrDefault, statsFromCellsArray),
+			A2(elm$core$List$range, 0, rowCount - 1)));
+};
+var author$project$Main$gameStateFromBoard = function (board) {
+	var stats = author$project$Main$getBoardStats(board);
+	return _Utils_eq(stats.bombsCount, stats.unrevealedCellsCount) ? author$project$Main$Completed(board) : author$project$Main$Playing(board);
 };
 var author$project$Main$isRevealedCell = F2(
 	function (board, pos) {
@@ -6156,12 +6222,20 @@ var author$project$Main$isRevealedCell = F2(
 				return true;
 		}
 	});
+var elm$core$Basics$always = F2(
+	function (a, _n0) {
+		return a;
+	});
 var elm$core$Basics$composeL = F3(
 	function (g, f, x) {
 		return g(
 			f(x));
 	});
 var elm$core$Basics$not = _Basics_not;
+var elm$core$Tuple$second = function (_n0) {
+	var y = _n0.b;
+	return y;
+};
 var author$project$Main$revealGameCell = F2(
 	function (pos, model) {
 		var gameState = model.gameState;
@@ -6176,12 +6250,19 @@ var author$project$Main$revealGameCell = F2(
 			var c = cell.a;
 			switch (c.$) {
 				case 'Bomb':
+					var updatedBoard = A3(
+						author$project$Main$updateCell,
+						elm$core$Basics$always(
+							author$project$Main$Revealed(
+								author$project$Main$Bomb(author$project$Main$Exploded))),
+						pos,
+						board).b;
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
 							{
 								gameState: author$project$Main$GameOver(
-									author$project$Main$revealBoard(board))
+									author$project$Main$revealBoard(updatedBoard))
 							}),
 						elm$core$Platform$Cmd$none);
 				case 'Empty':
@@ -6190,7 +6271,7 @@ var author$project$Main$revealGameCell = F2(
 							_Utils_update(
 								model,
 								{
-									gameState: author$project$Main$Playing(newBoard)
+									gameState: author$project$Main$gameStateFromBoard(newBoard)
 								})),
 						elm$core$Platform$Cmd$none);
 				default:
@@ -6198,7 +6279,7 @@ var author$project$Main$revealGameCell = F2(
 						_Utils_update(
 							model,
 							{
-								gameState: author$project$Main$Playing(newBoard)
+								gameState: author$project$Main$gameStateFromBoard(newBoard)
 							}),
 						elm$core$Platform$Cmd$none);
 			}
@@ -6344,7 +6425,7 @@ var author$project$Main$update = F2(
 				var board = msg.c;
 				var targetCell = A2(
 					elm$core$Maybe$withDefault,
-					author$project$Main$Bomb,
+					author$project$Main$Bomb(author$project$Main$Unexploded),
 					A2(
 						author$project$Main$peek,
 						_Utils_Tuple2(row, col),
@@ -6400,9 +6481,6 @@ var author$project$Main$update = F2(
 					model);
 		}
 	});
-var tortus$elm_array_2d$Array2D$rows = function (array2d) {
-	return elm$core$Array$length(array2d.data);
-};
 var author$project$Main$mapRows = F2(
 	function (f, board) {
 		var maxIndexRow = tortus$elm_array_2d$Array2D$rows(board) - 1;
@@ -6714,10 +6792,6 @@ var elm$core$Set$Set_elm_builtin = function (a) {
 	return {$: 'Set_elm_builtin', a: a};
 };
 var elm$core$Set$empty = elm$core$Set$Set_elm_builtin(elm$core$Dict$empty);
-var elm$core$Tuple$second = function (_n0) {
-	var y = _n0.b;
-	return y;
-};
 var elm$core$Dict$Black = {$: 'Black'};
 var elm$core$Dict$RBNode_elm_builtin = F5(
 	function (a, b, c, d, e) {
@@ -11957,7 +12031,13 @@ var author$project$Main$elementFromCell = function (c) {
 					]),
 				mdgriffith$elm_ui$Element$text(''));
 		case 'Bomb':
-			return author$project$Main$fixedImage('images/bomb.png');
+			if (c.a.$ === 'Unexploded') {
+				var _n1 = c.a;
+				return author$project$Main$fixedImage('images/bomb.png');
+			} else {
+				var _n2 = c.a;
+				return author$project$Main$fixedImage('images/explosion.png');
+			}
 		default:
 			var i = c.a;
 			return author$project$Main$fixedImage(
@@ -12252,7 +12332,28 @@ var author$project$Main$gameHeader = function (_n0) {
 		_List_fromArray(
 			[author$project$Main$gameTitle]));
 };
-var author$project$Main$notificationBar = function (_n0) {
+var author$project$Main$boardStatsFromGameState = A2(elm$core$Basics$composeR, author$project$Main$boardFromState, author$project$Main$getBoardStats);
+var author$project$Main$subtitleFromGameState = function (state) {
+	var boardStats = author$project$Main$boardStatsFromGameState(state);
+	if (state.$ === 'Playing') {
+		return 'Bombs: ' + (elm$core$String$fromInt(boardStats.bombsCount) + (' -- Unrevealed Cells: ' + elm$core$String$fromInt(boardStats.unrevealedCellsCount)));
+	} else {
+		return '';
+	}
+};
+var author$project$Main$titleFromGameState = function (state) {
+	switch (state.$) {
+		case 'NotStarted':
+			return 'Not Started';
+		case 'Playing':
+			return 'Currently Playing';
+		case 'GameOver':
+			return 'Game Over!';
+		default:
+			return 'Congratulations! You Won!';
+	}
+};
+var author$project$Main$notificationBar = function (gameState) {
 	return A2(
 		mdgriffith$elm_ui$Element$row,
 		_List_fromArray(
@@ -12263,7 +12364,14 @@ var author$project$Main$notificationBar = function (_n0) {
 				mdgriffith$elm_ui$Element$height(
 				mdgriffith$elm_ui$Element$px(50))
 			]),
-		_List_Nil);
+		_List_fromArray(
+			[
+				mdgriffith$elm_ui$Element$text(
+				author$project$Main$titleFromGameState(gameState)),
+				mdgriffith$elm_ui$Element$text(' ----- '),
+				mdgriffith$elm_ui$Element$text(
+				author$project$Main$subtitleFromGameState(gameState))
+			]));
 };
 var author$project$Main$mainDisplay = function (_n0) {
 	var gameState = _n0.gameState;

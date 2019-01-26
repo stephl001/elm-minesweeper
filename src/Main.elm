@@ -27,8 +27,13 @@ type PreGenerationBoardCell
     | FutureBomb
 
 
+type BombState
+    = Unexploded
+    | Exploded
+
+
 type Cell
-    = Bomb
+    = Bomb BombState
     | BombNeighbor Int
     | Empty
 
@@ -134,7 +139,7 @@ toCell : PreGenerationBoard -> ( Row, Column ) -> PreGenerationBoardCell -> Cell
 toCell board pos cell =
     case cell of
         FutureBomb ->
-            Bomb
+            Bomb Unexploded
 
         Uninitialized ->
             let
@@ -344,19 +349,19 @@ emptyBoardStats =
 statsFromCell : GameCell -> BoardStats
 statsFromCell cell =
     case cell of
-        Revealed Bomb ->
+        Revealed (Bomb _) ->
             { cellsCount = 1, bombsCount = 1, unrevealedCellsCount = 0 }
 
         Revealed _ ->
             { cellsCount = 1, bombsCount = 0, unrevealedCellsCount = 0 }
 
-        Unrevealed Bomb ->
+        Unrevealed (Bomb _) ->
             { cellsCount = 1, bombsCount = 1, unrevealedCellsCount = 1 }
 
         Unrevealed _ ->
             { cellsCount = 1, bombsCount = 0, unrevealedCellsCount = 1 }
 
-        Flagged Bomb ->
+        Flagged (Bomb _) ->
             { cellsCount = 1, bombsCount = 1, unrevealedCellsCount = 1 }
 
         Flagged _ ->
@@ -386,6 +391,19 @@ getBoardStats board =
     List.range 0 (rowCount - 1)
         |> List.map (getRowOrDefault >> statsFromCellsArray)
         |> List.foldl combineStats emptyBoardStats
+
+
+gameStateFromBoard : GameBoard -> GameState
+gameStateFromBoard board =
+    let
+        stats =
+            getBoardStats board
+    in
+    if stats.bombsCount == stats.unrevealedCellsCount then
+        Completed board
+
+    else
+        Playing board
 
 
 
@@ -499,7 +517,7 @@ update msg model =
         GeneratedBoard row col board ->
             let
                 targetCell =
-                    peek ( row, col ) board |> Maybe.withDefault Bomb
+                    peek ( row, col ) board |> Maybe.withDefault (Bomb Unexploded)
             in
             if targetCell == Empty then
                 { model | gameState = Playing board } |> update (RevealCell row col)
@@ -555,14 +573,18 @@ revealGameCell pos ({ gameState } as model) =
 
         Just c ->
             case c of
-                Bomb ->
-                    ( { model | gameState = GameOver (revealBoard board) }, Cmd.none )
+                Bomb _ ->
+                    let
+                        updatedBoard =
+                            updateCell (always (Revealed (Bomb Exploded))) pos board |> Tuple.second
+                    in
+                    ( { model | gameState = GameOver (revealBoard updatedBoard) }, Cmd.none )
 
                 Empty ->
-                    ( { model | gameState = Playing newBoard } |> revealEmptyCells, Cmd.none )
+                    ( { model | gameState = gameStateFromBoard newBoard } |> revealEmptyCells, Cmd.none )
 
                 BombNeighbor _ ->
-                    ( { model | gameState = Playing newBoard }, Cmd.none )
+                    ( { model | gameState = gameStateFromBoard newBoard }, Cmd.none )
 
 
 revealSiblingCells : ( Row, Column ) -> Model -> Model
@@ -618,8 +640,13 @@ gameTitle =
 
 
 notificationBar : GameState -> Element.Element Msg
-notificationBar _ =
-    row [ width fill, Background.color (Element.rgb 0 1 0), height (px 50) ] []
+notificationBar gameState =
+    row
+        [ width fill, Background.color (Element.rgb 0 1 0), height (px 50) ]
+        [ titleFromGameState gameState |> Element.text
+        , Element.text " ----- "
+        , subtitleFromGameState gameState |> Element.text
+        ]
 
 
 boardView : GameState -> Element.Element Msg
@@ -633,14 +660,14 @@ boardFromState state =
         NotStarted height width ->
             generateUninitializedBoard height width
 
-        Playing board ->
-            board
-
         GameOver board ->
             revealBoard board
 
-        _ ->
-            generateUninitializedBoard 0 0
+        Playing board ->
+            board
+
+        Completed board ->
+            board
 
 
 titleFromGameState : GameState -> String
@@ -801,8 +828,11 @@ elementFromCell c =
                 [ width fill, height fill, Background.color (rgb255 211 211 211) ]
                 (Element.text "")
 
-        Bomb ->
+        Bomb Unexploded ->
             fixedImage "images/bomb.png"
+
+        Bomb Exploded ->
+            fixedImage "images/explosion.png"
 
         BombNeighbor i ->
             fixedImage ("images/" ++ String.fromInt i ++ ".png")
