@@ -575,8 +575,11 @@ revealGameCell pos ({ gameState } as model) =
             case c of
                 Bomb _ ->
                     let
+                        revealedBomb =
+                            Revealed <| Bomb Exploded
+
                         updatedBoard =
-                            updateCell (always (Revealed (Bomb Exploded))) pos board |> Tuple.second
+                            updateCell (always revealedBomb) pos board |> Tuple.second
                     in
                     ( { model | gameState = GameOver (revealBoard updatedBoard) }, Cmd.none )
 

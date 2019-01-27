@@ -6250,11 +6250,11 @@ var author$project$Main$revealGameCell = F2(
 			var c = cell.a;
 			switch (c.$) {
 				case 'Bomb':
+					var revealedBomb = author$project$Main$Revealed(
+						author$project$Main$Bomb(author$project$Main$Exploded));
 					var updatedBoard = A3(
 						author$project$Main$updateCell,
-						elm$core$Basics$always(
-							author$project$Main$Revealed(
-								author$project$Main$Bomb(author$project$Main$Exploded))),
+						elm$core$Basics$always(revealedBomb),
 						pos,
 						board).b;
 					return _Utils_Tuple2(
