@@ -732,7 +732,7 @@ toTableCell state row col gcell =
         (getButtonAttributes state row col
             ++ [ width (px 50), height (px 50), Border.solid, Border.width 1 ]
         )
-        (textFromGameCell gcell)
+        (elementFromGameCell gcell)
 
 
 getButtonAttributes : GameState -> Row -> Column -> List (Element.Attribute Msg)
@@ -805,19 +805,23 @@ randomGeneratorFromBoardWidth width =
             generateEasyRandomBoard
 
 
+imageSrc file =
+    "assets/images/" ++ file
+
+
 fixedImage : String -> Element.Element Msg
 fixedImage src =
     Element.image [ width (px 50), height (px 50) ] { src = src, description = "" }
 
 
-textFromGameCell : GameCell -> Element.Element Msg
-textFromGameCell gcell =
+elementFromGameCell : GameCell -> Element.Element Msg
+elementFromGameCell gcell =
     case gcell of
         Unrevealed c ->
             Element.text ""
 
         Flagged c ->
-            fixedImage "images/flag.png"
+            fixedImage <| imageSrc "flag.png"
 
         Revealed c ->
             elementFromCell c
@@ -832,13 +836,13 @@ elementFromCell c =
                 (Element.text "")
 
         Bomb Unexploded ->
-            fixedImage "images/bomb.png"
+            fixedImage <| imageSrc "bomb.png"
 
         Bomb Exploded ->
-            fixedImage "images/explosion.png"
+            fixedImage <| imageSrc "explosion.png"
 
         BombNeighbor i ->
-            fixedImage ("images/" ++ String.fromInt i ++ ".png")
+            fixedImage <| imageSrc (String.fromInt i ++ ".png")
 
 
 

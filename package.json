@@ -1,0 +1,27 @@
+{
+  "name": "elm-minesweeper",
+  "version": "1.0.0",
+  "description": "[![Build Status](https://travis-ci.com/stephl001/elm-minesweeper.svg?branch=master)](https://travis-ci.com/stephl001/elm-minesweeper)",
+  "main": "elm.js",
+  "directories": {
+    "test": "tests"
+  },
+  "dependencies": {
+    "chokidar-cli": "^1.2.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "watch": "chokidar \"src/*.elm\" -c \"elm make src/Main.elm --output main.compiled.js\" --initial"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stephl001/elm-minesweeper.git"
+  },
+  "author": "Stephane Larocque",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/stephl001/elm-minesweeper/issues"
+  },
+  "homepage": "https://github.com/stephl001/elm-minesweeper#readme"
+}
