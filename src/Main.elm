@@ -73,7 +73,8 @@ type alias BombCount =
 
 
 type GameState
-    = NotStarted Height Width
+    = LevelUnselected
+    | NotStarted Height Width
     | Playing GameBoard
     | GameOver GameBoard
     | Completed GameBoard
@@ -470,7 +471,7 @@ notStartedHard =
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
-    ( { gameState = notStartedEasy }, Cmd.none )
+    ( { gameState = LevelUnselected }, Cmd.none )
 
 
 
@@ -653,8 +654,29 @@ notificationBar gameState =
 
 
 boardView : GameState -> Element.Element Msg
-boardView =
-    drawBoard >> column [ centerX ] >> List.singleton >> row [ width fill ]
+boardView gameState =
+    case gameState of
+        LevelUnselected ->
+            row [ width fill, centerY, spacing 30 ]
+                [ Input.button [ Border.rounded 5, Border.solid ]
+                    { onPress = Just (NewGame Easy)
+                    , label = Element.text "Easy"
+                    }
+                , Input.button []
+                    { onPress = Just (NewGame Medium)
+                    , label = Element.text "Medium"
+                    }
+                , Input.button []
+                    { onPress = Just (NewGame Hard)
+                    , label = Element.text "Hard"
+                    }
+                ]
+
+        _ ->
+            drawBoard gameState
+                |> column [ centerX ]
+                |> List.singleton
+                |> row [ width fill ]
 
 
 boardFromState : GameState -> GameBoard
@@ -672,10 +694,16 @@ boardFromState state =
         Completed board ->
             board
 
+        LevelUnselected ->
+            generateUninitializedBoard 0 0
+
 
 titleFromGameState : GameState -> String
 titleFromGameState state =
     case state of
+        LevelUnselected ->
+            "Choose a level..."
+
         NotStarted _ _ ->
             "Not Started"
 
@@ -761,6 +789,9 @@ getButtonAttributes state row col =
             []
 
         Completed _ ->
+            []
+
+        LevelUnselected ->
             []
 
 
