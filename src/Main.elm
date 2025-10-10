@@ -514,6 +514,7 @@ type GameMode
 
 type Msg
     = NewGame GameMode
+    | BackToLevelSelection
     | GenerateEasy Row Column
     | GenerateMedium Row Column
     | GenerateHard Row Column
@@ -528,6 +529,9 @@ update msg model =
     case msg of
         Tick _ ->
             ( { model | elapsedTime = model.elapsedTime + 1 }, Cmd.none )
+
+        BackToLevelSelection ->
+            ( { model | gameState = LevelUnselected, elapsedTime = 0, gameStartTime = Nothing }, Cmd.none )
 
         GenerateEasy row col ->
             ( model, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
@@ -691,11 +695,16 @@ view =
 
 mainDisplay : Model -> Element.Element Msg
 mainDisplay model =
-    column [ width fill ]
-        [ gameHeader model.gameState
-        , notificationBar model
-        , boardView model.gameState
-        ]
+    case model.gameState of
+        LevelUnselected ->
+            levelSelectionScreen
+
+        _ ->
+            column [ width fill ]
+                [ gameHeader model.gameState
+                , notificationBar model
+                , boardView model.gameState
+                ]
 
 
 gameHeader : GameState -> Element.Element Msg
@@ -835,7 +844,7 @@ newGameButton =
             [ Background.color colors.primaryLight
             ]
         ]
-        { onPress = Just (NewGame Easy)
+        { onPress = Just BackToLevelSelection
         , label = Element.text "↺ New Game"
         }
 
@@ -870,75 +879,125 @@ statItem icon value color =
         ]
 
 
+levelSelectionScreen : Element.Element Msg
+levelSelectionScreen =
+    column
+        [ width fill
+        , height fill
+        , centerX
+        , centerY
+        , spacing 60
+        , padding 40
+        ]
+        [ -- Large Title
+          el
+            [ Font.color colors.primary
+            , Font.size 72
+            , Font.bold
+            , Font.family
+                [ Font.typeface "Segoe UI"
+                , Font.typeface "Roboto"
+                , Font.sansSerif
+                ]
+            , centerX
+            , htmlAttribute (HtmlAttr.style "text-shadow" "0 4px 6px rgba(99, 102, 241, 0.3)")
+            ]
+            (Element.text "MINESWEEPER")
+        , -- Subtitle
+          el
+            [ Font.color colors.textSecondary
+            , Font.size 20
+            , centerX
+            , Font.light
+            ]
+            (Element.text "Choose your difficulty level")
+        , -- Difficulty Cards
+          Element.wrappedRow
+            [ width fill
+            , centerX
+            , spacing 30
+            , Element.htmlAttribute (HtmlAttr.style "justify-content" "center")
+            , Element.htmlAttribute (HtmlAttr.style "max-width" "900px")
+            , Element.htmlAttribute (HtmlAttr.style "margin" "0 auto")
+            ]
+            [ difficultyCard "EASY" "9×9" "10 mines" (NewGame Easy) colors.success "🙂"
+            , difficultyCard "MEDIUM" "16×16" "40 mines" (NewGame Medium) colors.warning "😐"
+            , difficultyCard "HARD" "16×30" "99 mines" (NewGame Hard) colors.danger "😰"
+            ]
+        ]
+
+
 boardView : GameState -> Element.Element Msg
 boardView gameState =
-    case gameState of
-        LevelUnselected ->
-            column
-                [ width fill
-                , centerY
-                , spacing 40
-                , padding 50
-                ]
-                [ el
-                    [ Font.color colors.textSecondary
-                    , Font.size 18
-                    , centerX
-                    ]
-                    (Element.text "Choose your difficulty level")
-                , row [ width fill, centerX, spacing 30 ]
-                    [ difficultyCard "EASY" "9×9" "10 mines" (NewGame Easy) colors.success
-                    , difficultyCard "MEDIUM" "16×16" "40 mines" (NewGame Medium) colors.warning
-                    , difficultyCard "HARD" "16×30" "99 mines" (NewGame Hard) colors.danger
-                    ]
-                ]
-
-        _ ->
-            drawBoard gameState
-                |> column [ centerX, padding 30 ]
-                |> List.singleton
-                |> row [ width fill ]
+    drawBoard gameState
+        |> column
+            [ centerX
+            , padding 20
+            , htmlAttribute (HtmlAttr.style "max-width" "100vw")
+            , htmlAttribute (HtmlAttr.style "overflow-x" "auto")
+            ]
+        |> List.singleton
+        |> row
+            [ width fill
+            , htmlAttribute (HtmlAttr.style "overflow-x" "auto")
+            ]
 
 
-difficultyCard : String -> String -> String -> Msg -> Element.Color -> Element.Element Msg
-difficultyCard label gridSize minesInfo msg accentColor =
+difficultyCard : String -> String -> String -> Msg -> Element.Color -> String -> Element.Element Msg
+difficultyCard label gridSize minesInfo msg accentColor emoji =
     Input.button
         [ Background.color colors.surface
         , Font.color colors.textPrimary
-        , Border.rounded 12
-        , Border.width 2
+        , Border.rounded 16
+        , Border.width 3
         , Border.color colors.border
-        , padding 25
-        , width (px 180)
-        , height (px 180)
+        , padding 35
+        , width (px 240)
+        , height (px 280)
         , Element.mouseOver
             [ Background.color colors.surfaceLight
             , Border.color accentColor
-            , Border.glow accentColor 2
+            , Border.glow accentColor 3
             ]
-        , htmlAttribute (HtmlAttr.class "fade-in")
+        , htmlAttribute (HtmlAttr.style "transition" "all 0.3s ease")
+        , htmlAttribute (HtmlAttr.style "cursor" "pointer")
+        , htmlAttribute (HtmlAttr.class "difficulty-card")
         ]
         { onPress = Just msg
         , label =
             column
-                [ spacing 15
+                [ spacing 20
                 , centerX
                 , centerY
+                , width fill
                 ]
-                [ el
-                    [ Font.size 24
+                [ -- Emoji Icon
+                  el
+                    [ Font.size 56
+                    , centerX
+                    ]
+                    (Element.text emoji)
+                , -- Label
+                  el
+                    [ Font.size 28
                     , Font.bold
                     , Font.color accentColor
                     , centerX
                     ]
                     (Element.text label)
-                , column
-                    [ spacing 8
-                    , Font.size 14
+                , -- Details
+                  column
+                    [ spacing 6
+                    , Font.size 16
                     , Font.color colors.textSecondary
                     , centerX
+                    , width fill
                     ]
-                    [ el [ centerX ] (Element.text gridSize)
+                    [ el
+                        [ centerX
+                        , Font.semiBold
+                        ]
+                        (Element.text gridSize)
                     , el [ centerX ] (Element.text minesInfo)
                     ]
                 ]
@@ -1066,10 +1125,31 @@ toTableRow state rowIndex =
 toTableCell : GameState -> Row -> Column -> GameCell -> Element.Element Msg
 toTableCell state row col gcell =
     let
+        -- Calculate responsive cell size based on board width
+        board =
+            boardFromState state
+
+        boardWidth =
+            getBoardWidth board
+
+        cellSize =
+            if boardWidth >= 30 then
+                -- Hard mode: smaller cells for wide boards
+                px 35
+
+            else if boardWidth >= 16 then
+                -- Medium mode
+                px 40
+
+            else
+                -- Easy mode
+                px 50
+
         baseStyles =
-            [ width (px 50)
-            , height (px 50)
+            [ width cellSize
+            , height cellSize
             , Border.rounded 4
+            , htmlAttribute (HtmlAttr.class "game-cell")
             ]
 
         cellStyles =
