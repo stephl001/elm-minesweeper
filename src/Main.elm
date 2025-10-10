@@ -607,8 +607,9 @@ revealSiblingCells pos ({ gameState } as model) =
 
 
 ---- VIEW ----
-
 -- Color Palette
+
+
 colors : { background : Element.Color, surface : Element.Color, surfaceLight : Element.Color, primary : Element.Color, primaryLight : Element.Color, success : Element.Color, danger : Element.Color, warning : Element.Color, textPrimary : Element.Color, textSecondary : Element.Color, cellUnrevealed : Element.Color, cellRevealed : Element.Color, border : Element.Color, borderLight : Element.Color }
 colors =
     { background = rgb255 18 18 18
@@ -679,26 +680,102 @@ gameTitle =
 
 notificationBar : GameState -> Element.Element Msg
 notificationBar gameState =
+    let
+        stats =
+            boardStatsFromGameState gameState
+
+        statusColor =
+            case gameState of
+                Completed _ ->
+                    colors.success
+
+                GameOver _ ->
+                    colors.danger
+
+                Playing _ ->
+                    colors.primary
+
+                _ ->
+                    colors.textSecondary
+    in
     row
         [ width fill
         , Background.color colors.surface
-        , height (px 70)
         , padding 20
-        , spacing 20
+        , spacing 30
         , Border.widthEach { bottom = 2, top = 0, left = 0, right = 0 }
-        , Border.color colors.primary
+        , Border.color statusColor
         ]
         [ el
-            [ Font.color colors.textPrimary
+            [ Font.color statusColor
             , Font.size 20
-            , Font.semiBold
+            , Font.bold
             ]
             (titleFromGameState gameState |> Element.text)
-        , el
-            [ Font.color colors.textSecondary
-            , Font.size 16
+        , case gameState of
+            Playing _ ->
+                statsDisplay stats
+
+            NotStarted _ _ ->
+                Element.none
+
+            _ ->
+                statsDisplay stats
+        , case gameState of
+            LevelUnselected ->
+                Element.none
+
+            _ ->
+                newGameButton
+        ]
+
+
+newGameButton : Element.Element Msg
+newGameButton =
+    Input.button
+        [ Background.color colors.primary
+        , Font.color colors.textPrimary
+        , Font.size 14
+        , Font.semiBold
+        , Border.rounded 6
+        , padding 12
+        , alignRight
+        , Element.mouseOver
+            [ Background.color colors.primaryLight
             ]
-            (subtitleFromGameState gameState |> Element.text)
+        ]
+        { onPress = Just (NewGame Easy)
+        , label = Element.text "↺ New Game"
+        }
+
+
+statsDisplay : BoardStats -> Element.Element Msg
+statsDisplay stats =
+    row
+        [ spacing 30
+        , alignRight
+        ]
+        [ statItem "💣" (String.fromInt stats.bombsCount) colors.danger
+        , statItem "🚩" (String.fromInt (stats.bombsCount - (stats.cellsCount - stats.unrevealedCellsCount - stats.bombsCount))) colors.warning
+        , statItem "📦" (String.fromInt stats.unrevealedCellsCount) colors.textSecondary
+        ]
+
+
+statItem : String -> String -> Element.Color -> Element.Element Msg
+statItem icon value color =
+    row
+        [ spacing 8
+        , Background.color colors.surfaceLight
+        , Border.rounded 6
+        , padding 12
+        ]
+        [ el [ Font.size 18 ] (Element.text icon)
+        , el
+            [ Font.color color
+            , Font.size 18
+            , Font.bold
+            ]
+            (Element.text value)
         ]
 
 
@@ -706,10 +783,23 @@ boardView : GameState -> Element.Element Msg
 boardView gameState =
     case gameState of
         LevelUnselected ->
-            row [ width fill, centerY, spacing 30, padding 50 ]
-                [ difficultyButton "EASY" (NewGame Easy)
-                , difficultyButton "MEDIUM" (NewGame Medium)
-                , difficultyButton "HARD" (NewGame Hard)
+            column
+                [ width fill
+                , centerY
+                , spacing 40
+                , padding 50
+                ]
+                [ el
+                    [ Font.color colors.textSecondary
+                    , Font.size 18
+                    , centerX
+                    ]
+                    (Element.text "Choose your difficulty level")
+                , row [ width fill, centerX, spacing 30 ]
+                    [ difficultyCard "EASY" "9×9" "10 mines" (NewGame Easy) colors.success
+                    , difficultyCard "MEDIUM" "16×16" "40 mines" (NewGame Medium) colors.warning
+                    , difficultyCard "HARD" "16×30" "99 mines" (NewGame Hard) colors.danger
+                    ]
                 ]
 
         _ ->
@@ -717,6 +807,51 @@ boardView gameState =
                 |> column [ centerX, padding 30 ]
                 |> List.singleton
                 |> row [ width fill ]
+
+
+difficultyCard : String -> String -> String -> Msg -> Element.Color -> Element.Element Msg
+difficultyCard label gridSize minesInfo msg accentColor =
+    Input.button
+        [ Background.color colors.surface
+        , Font.color colors.textPrimary
+        , Border.rounded 12
+        , Border.width 2
+        , Border.color colors.border
+        , padding 25
+        , width (px 180)
+        , height (px 180)
+        , Element.mouseOver
+            [ Background.color colors.surfaceLight
+            , Border.color accentColor
+            , Border.glow accentColor 2
+            ]
+        , htmlAttribute (HtmlAttr.class "fade-in")
+        ]
+        { onPress = Just msg
+        , label =
+            column
+                [ spacing 15
+                , centerX
+                , centerY
+                ]
+                [ el
+                    [ Font.size 24
+                    , Font.bold
+                    , Font.color accentColor
+                    , centerX
+                    ]
+                    (Element.text label)
+                , column
+                    [ spacing 8
+                    , Font.size 14
+                    , Font.color colors.textSecondary
+                    , centerX
+                    ]
+                    [ el [ centerX ] (Element.text gridSize)
+                    , el [ centerX ] (Element.text minesInfo)
+                    ]
+                ]
+        }
 
 
 difficultyButton : String -> Msg -> Element.Element Msg
@@ -767,16 +902,16 @@ titleFromGameState state =
             "Choose a level..."
 
         NotStarted _ _ ->
-            "Not Started"
+            "Click any cell to start"
 
         Playing _ ->
-            "Currently Playing"
+            "Good luck!"
 
         GameOver _ ->
-            "Game Over!"
+            "💥 Game Over!"
 
         Completed _ ->
-            "Congratulations! You Won!"
+            "🎉 Victory!"
 
 
 boardStatsFromGameState : GameState -> BoardStats
@@ -786,13 +921,12 @@ boardStatsFromGameState =
 
 subtitleFromGameState : GameState -> String
 subtitleFromGameState state =
-    let
-        boardStats =
-            boardStatsFromGameState state
-    in
     case state of
-        Playing _ ->
-            "Bombs: " ++ String.fromInt boardStats.bombsCount ++ " -- Unrevealed Cells: " ++ String.fromInt boardStats.unrevealedCellsCount
+        Completed _ ->
+            "All mines cleared successfully!"
+
+        GameOver _ ->
+            "Better luck next time!"
 
         _ ->
             ""
@@ -803,8 +937,30 @@ drawBoard state =
     let
         board =
             boardFromState state
+
+        animationClass =
+            case state of
+                Completed _ ->
+                    htmlAttribute (HtmlAttr.class "game-win")
+
+                GameOver _ ->
+                    htmlAttribute (HtmlAttr.class "game-loss")
+
+                _ ->
+                    htmlAttribute (HtmlAttr.class "")
     in
-    board |> mapRows (toTableRow state)
+    board
+        |> mapRows
+            (\rowIndex ->
+                toTableRow state rowIndex
+                    |> Element.el
+                        (if state == Completed board || state == GameOver board then
+                            [ animationClass ]
+
+                         else
+                            []
+                        )
+            )
 
 
 toTableRow : GameState -> Row -> Element.Element Msg

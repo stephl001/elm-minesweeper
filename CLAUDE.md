@@ -78,3 +78,9 @@ The compiled JavaScript (`main.compiled.js`) is checked into git and can be depl
 2. Commit the compiled JS file to git
 3. Enable GitHub Pages in repository settings, pointing to the branch with your code
 4. The game will be accessible at `https://<username>.github.io/<repository-name>/`
+
+### Context7 ###
+
+Always use context7 when I need code generation, setup or configuration steps, or
+library/API documentation. This means you should automatically use the Context7 MCP
+tools to resolve library id and get library docs without me having to explicitly ask.
