@@ -1,4 +1,4 @@
-module Main exposing (GameState, Msg(..), init, main, update, view)
+port module Main exposing (GameState, Msg(..), init, main, update, view)
 
 import Array
 import Array2D exposing (..)
@@ -16,6 +16,13 @@ import Json.Decode as Decode
 import List.Extra exposing (cartesianProduct, groupsOf)
 import Random
 import Random.List exposing (shuffle)
+import Time
+
+
+-- PORTS
+
+
+port celebrateVictory : () -> Cmd msg
 
 
 
@@ -82,6 +89,8 @@ type GameState
 
 type alias Model =
     { gameState : GameState
+    , elapsedTime : Int
+    , gameStartTime : Maybe Time.Posix
     }
 
 
@@ -471,7 +480,12 @@ notStartedHard =
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
-    ( { gameState = LevelUnselected }, Cmd.none )
+    ( { gameState = LevelUnselected
+      , elapsedTime = 0
+      , gameStartTime = Nothing
+      }
+    , Cmd.none
+    )
 
 
 
@@ -479,8 +493,13 @@ init _ =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    case model.gameState of
+        Playing _ ->
+            Time.every 1000 Tick
+
+        _ ->
+            Sub.none
 
 
 
@@ -501,11 +520,15 @@ type Msg
     | GeneratedBoard Row Column GameBoard
     | RevealCell Row Column
     | FlagCell Row Column
+    | Tick Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        Tick _ ->
+            ( { model | elapsedTime = model.elapsedTime + 1 }, Cmd.none )
+
         GenerateEasy row col ->
             ( model, Random.generate (GeneratedBoard row col) generateEasyRandomBoard )
 
@@ -521,21 +544,25 @@ update msg model =
                     peek ( row, col ) board |> Maybe.withDefault (Bomb Unexploded)
             in
             if targetCell == Empty then
-                { model | gameState = Playing board } |> update (RevealCell row col)
+                { model | gameState = Playing board, elapsedTime = 0 } |> update (RevealCell row col)
 
             else
                 ( model, board |> randomGeneratorFromBoard |> Random.generate (GeneratedBoard row col) )
 
         NewGame mode ->
-            case mode of
-                Easy ->
-                    ( { model | gameState = notStartedEasy }, Cmd.none )
+            let
+                newState =
+                    case mode of
+                        Easy ->
+                            notStartedEasy
 
-                Medium ->
-                    ( { model | gameState = notStartedMedium }, Cmd.none )
+                        Medium ->
+                            notStartedMedium
 
-                Hard ->
-                    ( { model | gameState = notStartedHard }, Cmd.none )
+                        Hard ->
+                            notStartedHard
+            in
+            ( { model | gameState = newState, elapsedTime = 0, gameStartTime = Nothing }, Cmd.none )
 
         RevealCell row col ->
             revealGameCell ( row, col ) model
@@ -567,6 +594,17 @@ revealGameCell pos ({ gameState } as model) =
 
         revealEmptyCells =
             revealSiblingCells pos
+
+        newGameState =
+            gameStateFromBoard newBoard
+
+        victoryCmd =
+            case newGameState of
+                Completed _ ->
+                    celebrateVictory ()
+
+                _ ->
+                    Cmd.none
     in
     case cell of
         Nothing ->
@@ -585,10 +623,14 @@ revealGameCell pos ({ gameState } as model) =
                     ( { model | gameState = GameOver (revealBoard updatedBoard) }, Cmd.none )
 
                 Empty ->
-                    ( { model | gameState = gameStateFromBoard newBoard } |> revealEmptyCells, Cmd.none )
+                    let
+                        updatedModel =
+                            { model | gameState = newGameState } |> revealEmptyCells
+                    in
+                    ( updatedModel, victoryCmd )
 
                 BombNeighbor _ ->
-                    ( { model | gameState = gameStateFromBoard newBoard }, Cmd.none )
+                    ( { model | gameState = newGameState }, victoryCmd )
 
 
 revealSiblingCells : ( Row, Column ) -> Model -> Model
@@ -648,11 +690,11 @@ view =
 
 
 mainDisplay : Model -> Element.Element Msg
-mainDisplay { gameState } =
+mainDisplay model =
     column [ width fill ]
-        [ gameHeader gameState
-        , notificationBar gameState
-        , boardView gameState
+        [ gameHeader model.gameState
+        , notificationBar model
+        , boardView model.gameState
         ]
 
 
@@ -678,9 +720,12 @@ gameTitle =
         (Element.text "MINESWEEPER")
 
 
-notificationBar : GameState -> Element.Element Msg
-notificationBar gameState =
+notificationBar : Model -> Element.Element Msg
+notificationBar model =
     let
+        gameState =
+            model.gameState
+
         stats =
             boardStatsFromGameState gameState
 
@@ -714,19 +759,65 @@ notificationBar gameState =
             (titleFromGameState gameState |> Element.text)
         , case gameState of
             Playing _ ->
-                statsDisplay stats
+                row [ spacing 20 ]
+                    [ timerDisplay model.elapsedTime
+                    , statsDisplay stats
+                    ]
 
             NotStarted _ _ ->
                 Element.none
 
+            Completed _ ->
+                row [ spacing 20 ]
+                    [ timerDisplay model.elapsedTime
+                    , statsDisplay stats
+                    ]
+
+            GameOver _ ->
+                row [ spacing 20 ]
+                    [ timerDisplay model.elapsedTime
+                    , statsDisplay stats
+                    ]
+
             _ ->
-                statsDisplay stats
+                Element.none
         , case gameState of
             LevelUnselected ->
                 Element.none
 
             _ ->
                 newGameButton
+        ]
+
+
+timerDisplay : Int -> Element.Element Msg
+timerDisplay seconds =
+    let
+        minutes =
+            seconds // 60
+
+        remainingSeconds =
+            modBy 60 seconds
+
+        timeString =
+            String.padLeft 2 '0' (String.fromInt minutes)
+                ++ ":"
+                ++ String.padLeft 2 '0' (String.fromInt remainingSeconds)
+    in
+    row
+        [ spacing 8
+        , Background.color colors.surfaceLight
+        , Border.rounded 6
+        , padding 12
+        ]
+        [ el [ Font.size 18 ] (Element.text "⏱")
+        , el
+            [ Font.color colors.primary
+            , Font.size 18
+            , Font.bold
+            , Font.family [ Font.monospace ]
+            ]
+            (Element.text timeString)
         ]
 
 
