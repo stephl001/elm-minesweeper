@@ -8,23 +8,25 @@ This is a Minesweeper game built with Elm 0.19.1. The application is a single-pa
 
 ## Build Commands
 
-### Compile for development
-```bash
-npm run watch
-```
-This uses chokidar to watch for changes in `src/*.elm` files and automatically recompiles to `main.compiled.js`.
+This is a pure Elm project with no npm dependencies.
 
 ### Build for production
 ```bash
-npm run release
+elm make src/Main.elm --optimize --output=main.compiled.js
 ```
 Compiles with optimization enabled to `main.compiled.js`.
+
+### Compile for development (with debug)
+```bash
+elm make src/Main.elm --output=main.compiled.js
+```
+Compiles without optimization for development.
 
 ### Format validation
 ```bash
 elm-format --validate .
 ```
-This is run in CI (Travis) to ensure code formatting standards.
+Validates code formatting standards (requires elm-format to be installed globally).
 
 ## Architecture
 
@@ -69,4 +71,10 @@ The project has a basic test setup in `tests/Tests.elm` but currently only conta
 
 ## Deployment
 
-The compiled JavaScript (`main.compiled.js`) is checked into git and deployed via Netlify. The `index.html` file loads this compiled output and initializes the Elm app with `Elm.Main.init({ flags: null })`.
+The compiled JavaScript (`main.compiled.js`) is checked into git and can be deployed to GitHub Pages or any static hosting service. The `index.html` file loads this compiled output and initializes the Elm app with `Elm.Main.init({ flags: null })`.
+
+### GitHub Pages Setup
+1. Build the production version: `elm make src/Main.elm --optimize --output=main.compiled.js`
+2. Commit the compiled JS file to git
+3. Enable GitHub Pages in repository settings, pointing to the branch with your code
+4. The game will be accessible at `https://<username>.github.io/<repository-name>/`
