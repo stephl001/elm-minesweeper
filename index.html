@@ -4,6 +4,48 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Elm Minesweeper</title>
+    <style>
+        @keyframes cellReveal {
+            0% {
+                transform: rotateY(0deg) scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: rotateY(90deg) scale(0.95);
+                opacity: 0.8;
+            }
+            100% {
+                transform: rotateY(0deg) scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes cellPulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        .cell-reveal {
+            animation: cellReveal 0.3s ease-out;
+        }
+
+        .cell-pulse {
+            animation: cellPulse 0.2s ease-out;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
     <script src="main.compiled.js"></script>
 </head>
 <body>

@@ -10,7 +10,7 @@ import Element.Events as Events
 import Element.Font as Font
 import Element.Input as Input
 import Html exposing (..)
-import Html.Attributes exposing (class, href, src, style)
+import Html.Attributes as HtmlAttr
 import Html.Events exposing (preventDefaultOn)
 import Json.Decode as Decode
 import List.Extra exposing (cartesianProduct, groupsOf)
@@ -608,10 +608,42 @@ revealSiblingCells pos ({ gameState } as model) =
 
 ---- VIEW ----
 
+-- Color Palette
+colors : { background : Element.Color, surface : Element.Color, surfaceLight : Element.Color, primary : Element.Color, primaryLight : Element.Color, success : Element.Color, danger : Element.Color, warning : Element.Color, textPrimary : Element.Color, textSecondary : Element.Color, cellUnrevealed : Element.Color, cellRevealed : Element.Color, border : Element.Color, borderLight : Element.Color }
+colors =
+    { background = rgb255 18 18 18
+    , surface = rgb255 30 30 30
+    , surfaceLight = rgb255 45 45 45
+    , primary = rgb255 99 102 241
+    , primaryLight = rgb255 129 140 248
+    , success = rgb255 34 197 94
+    , danger = rgb255 239 68 68
+    , warning = rgb255 234 179 8
+    , textPrimary = rgb255 243 244 246
+    , textSecondary = rgb255 156 163 175
+    , cellUnrevealed = rgb255 71 85 105
+    , cellRevealed = rgb255 226 232 240
+    , border = rgb255 71 85 105
+    , borderLight = rgb255 100 116 139
+    }
+
+
+numberColors : { one : Element.Color, two : Element.Color, three : Element.Color, four : Element.Color, five : Element.Color, six : Element.Color, seven : Element.Color, eight : Element.Color }
+numberColors =
+    { one = rgb255 59 130 246
+    , two = rgb255 34 197 94
+    , three = rgb255 239 68 68
+    , four = rgb255 30 58 138
+    , five = rgb255 127 29 29
+    , six = rgb255 6 182 212
+    , seven = rgb255 17 24 39
+    , eight = rgb255 107 114 128
+    }
+
 
 view : Model -> Browser.Document Msg
 view =
-    mainDisplay >> Element.layout [] >> List.singleton >> Browser.Document "Minesweeper"
+    mainDisplay >> Element.layout [ Background.color colors.background ] >> List.singleton >> Browser.Document "Minesweeper"
 
 
 mainDisplay : Model -> Element.Element Msg
@@ -631,25 +663,42 @@ gameHeader _ =
 gameTitle : Element.Element Msg
 gameTitle =
     Element.el
-        [ Font.color (Element.rgb 0 0 1)
-        , Font.size 40
+        [ Font.color colors.primary
+        , Font.size 48
+        , Font.bold
         , Font.family
-            [ Font.typeface "Comic Sans MS"
+            [ Font.typeface "Segoe UI"
+            , Font.typeface "Roboto"
             , Font.sansSerif
             ]
         , centerX
-        , padding 20
+        , padding 30
         ]
-        (Element.text "Minesweeper")
+        (Element.text "MINESWEEPER")
 
 
 notificationBar : GameState -> Element.Element Msg
 notificationBar gameState =
     row
-        [ width fill, Background.color (Element.rgb 0 1 0), height (px 50) ]
-        [ titleFromGameState gameState |> Element.text
-        , Element.text " ----- "
-        , subtitleFromGameState gameState |> Element.text
+        [ width fill
+        , Background.color colors.surface
+        , height (px 70)
+        , padding 20
+        , spacing 20
+        , Border.widthEach { bottom = 2, top = 0, left = 0, right = 0 }
+        , Border.color colors.primary
+        ]
+        [ el
+            [ Font.color colors.textPrimary
+            , Font.size 20
+            , Font.semiBold
+            ]
+            (titleFromGameState gameState |> Element.text)
+        , el
+            [ Font.color colors.textSecondary
+            , Font.size 16
+            ]
+            (subtitleFromGameState gameState |> Element.text)
         ]
 
 
@@ -657,26 +706,39 @@ boardView : GameState -> Element.Element Msg
 boardView gameState =
     case gameState of
         LevelUnselected ->
-            row [ width fill, centerY, spacing 30 ]
-                [ Input.button [ Border.rounded 5, Border.solid ]
-                    { onPress = Just (NewGame Easy)
-                    , label = Element.text "Easy"
-                    }
-                , Input.button []
-                    { onPress = Just (NewGame Medium)
-                    , label = Element.text "Medium"
-                    }
-                , Input.button []
-                    { onPress = Just (NewGame Hard)
-                    , label = Element.text "Hard"
-                    }
+            row [ width fill, centerY, spacing 30, padding 50 ]
+                [ difficultyButton "EASY" (NewGame Easy)
+                , difficultyButton "MEDIUM" (NewGame Medium)
+                , difficultyButton "HARD" (NewGame Hard)
                 ]
 
         _ ->
             drawBoard gameState
-                |> column [ centerX ]
+                |> column [ centerX, padding 30 ]
                 |> List.singleton
                 |> row [ width fill ]
+
+
+difficultyButton : String -> Msg -> Element.Element Msg
+difficultyButton label msg =
+    Input.button
+        [ Background.color colors.surface
+        , Font.color colors.textPrimary
+        , Font.size 18
+        , Font.semiBold
+        , Border.rounded 8
+        , Border.width 2
+        , Border.color colors.primary
+        , padding 20
+        , width (px 150)
+        , Element.mouseOver
+            [ Background.color colors.surfaceLight
+            , Border.color colors.primaryLight
+            ]
+        ]
+        { onPress = Just msg
+        , label = el [ centerX ] (Element.text label)
+        }
 
 
 boardFromState : GameState -> GameBoard
@@ -756,11 +818,94 @@ toTableRow state rowIndex =
 
 toTableCell : GameState -> Row -> Column -> GameCell -> Element.Element Msg
 toTableCell state row col gcell =
+    let
+        baseStyles =
+            [ width (px 50)
+            , height (px 50)
+            , Border.rounded 4
+            ]
+
+        cellStyles =
+            case gcell of
+                Unrevealed _ ->
+                    [ Background.color colors.cellUnrevealed
+                    , Border.width 3
+                    , Border.color colors.borderLight
+                    , Border.shadow
+                        { offset = ( 0, 4 )
+                        , size = 0
+                        , blur = 0
+                        , color = rgba255 0 0 0 0.3
+                        }
+                    ]
+
+                Flagged _ ->
+                    [ Background.color colors.cellUnrevealed
+                    , Border.width 3
+                    , Border.color colors.warning
+                    , Border.shadow
+                        { offset = ( 0, 4 )
+                        , size = 0
+                        , blur = 0
+                        , color = rgba255 0 0 0 0.3
+                        }
+                    ]
+
+                Revealed _ ->
+                    [ Background.color colors.cellRevealed
+                    , Border.width 1
+                    , Border.color colors.border
+                    , Border.shadow
+                        { offset = ( 0, 1 )
+                        , size = 0
+                        , blur = 0
+                        , color = rgba255 0 0 0 0.1
+                        }
+                    , htmlAttribute (HtmlAttr.class "cell-reveal")
+                    ]
+
+        hoverStyles =
+            case state of
+                Playing _ ->
+                    case gcell of
+                        Unrevealed _ ->
+                            [ Element.mouseOver
+                                [ Background.color colors.surfaceLight
+                                , Border.glow colors.primary 2
+                                ]
+                            ]
+
+                        Flagged _ ->
+                            [ Element.mouseOver
+                                [ Border.glow colors.warning 2
+                                ]
+                            ]
+
+                        _ ->
+                            []
+
+                NotStarted _ _ ->
+                    [ Element.mouseOver
+                        [ Background.color colors.surfaceLight
+                        , Border.glow colors.primary 2
+                        ]
+                    ]
+
+                _ ->
+                    []
+    in
     el
         (getButtonAttributes state row col
-            ++ [ width (px 50), height (px 50), Border.solid, Border.width 1 ]
+            ++ baseStyles
+            ++ cellStyles
+            ++ hoverStyles
         )
         (elementFromGameCell gcell)
+
+
+rgba255 : Int -> Int -> Int -> Float -> Element.Color
+rgba255 r g b a =
+    Element.rgba255 r g b a
 
 
 getButtonAttributes : GameState -> Row -> Column -> List (Element.Attribute Msg)
@@ -863,7 +1008,7 @@ elementFromCell c =
     case c of
         Empty ->
             Element.el
-                [ width fill, height fill, Background.color (rgb255 211 211 211) ]
+                [ width fill, height fill, Background.color colors.cellRevealed ]
                 (Element.text "")
 
         Bomb Unexploded ->
@@ -873,7 +1018,51 @@ elementFromCell c =
             fixedImage <| imageSrc "explosion.png"
 
         BombNeighbor i ->
-            fixedImage <| imageSrc (String.fromInt i ++ ".png")
+            Element.el
+                [ width fill
+                , height fill
+                , Background.color colors.cellRevealed
+                ]
+                (el
+                    [ centerX
+                    , centerY
+                    , Font.size 24
+                    , Font.bold
+                    , Font.color (colorForNumber i)
+                    ]
+                    (Element.text (String.fromInt i))
+                )
+
+
+colorForNumber : Int -> Element.Color
+colorForNumber n =
+    case n of
+        1 ->
+            numberColors.one
+
+        2 ->
+            numberColors.two
+
+        3 ->
+            numberColors.three
+
+        4 ->
+            numberColors.four
+
+        5 ->
+            numberColors.five
+
+        6 ->
+            numberColors.six
+
+        7 ->
+            numberColors.seven
+
+        8 ->
+            numberColors.eight
+
+        _ ->
+            colors.textPrimary
 
 
 
